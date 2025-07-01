@@ -20,6 +20,7 @@ import { RouteContacts } from "./Modules/Contacts/Routes/Contacats.routes";
 import { RouteBoutique } from "./Modules/Boutique/Routes/Boutique.routes";
 import { RouteUsers } from "./Modules/Users/Routes/User.routes";
 import { RouteStats } from "./Modules/Others/Routes/Stats.routes";
+import serverless from "serverless-http";
 
 const app = express();
 app.use(cors());
@@ -83,4 +84,4 @@ app.use("/api/stats", RouteStats)
 const PORT = process.env.PORT || 5000;
 // app.listen(PORT, () => console.log(`✅ Servidor en http://localhost:${PORT}`));
 
-module.exports = app;
+module.exports = serverless(app);
