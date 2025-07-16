@@ -17,16 +17,16 @@ export const getContactsActivitiesRepository = async (): Promise<IContactsActivi
             throw new Error("Company name is not set");
         }
         // Referencia al documento "classes" dentro de la colección de la compañía
-        const docRef = db.collection(companyName).doc("zContactsActivities");
+        const docRef = db.collection(companyName).doc("zContactsActivities").collection("activities");
 
         // Obtener el documento
         const docSnap = await docRef.get();
 
-        if (!docSnap.exists) {
+        if (docSnap.empty) {
             return response;
         }
 
-        let contactsActivities: IContactsActivities[] = docSnap.data()?.activities
+        let contactsActivities: IContactsActivities[] = docSnap.docs.map((doc) => doc.data() as IContactsActivities)
 
         return contactsActivities;
 
@@ -45,16 +45,17 @@ export const getContactActivitiesByContactIdRepository = async (contactId: strin
             throw new Error("Company name is not set");
         }
         // Referencia al documento "classes" dentro de la colección de la compañía
-        const docRef = db.collection(companyName).doc("zContactsActivities");
+        const docRef = db.collection(companyName).doc("zContactsActivities").collection("activities");
+
 
         // Obtener el documento
         const docSnap = await docRef.get();
 
-        if (!docSnap.exists) {
+        if (docSnap.empty) {
             return response;
         }
 
-        let contactsActivities: IContactsActivities[] = docSnap.data()?.activities.filter((act: IContactsActivities) => act.contactId === contactId)
+        let contactsActivities: IContactsActivities[] = docSnap.docs.map((doc) => doc.data() as IContactsActivities).filter((act: IContactsActivities) => act.contactId === contactId)
 
         return contactsActivities;
 
@@ -73,16 +74,18 @@ export const getContactActivitiesByActivityIdRepository = async (activityId: str
             throw new Error("Company name is not set");
         }
         // Referencia al documento "classes" dentro de la colección de la compañía
-        const docRef = db.collection(companyName).doc("zContactsActivities");
+        const docRef = db.collection(companyName).doc("zContactsActivities").collection("activities");
+
 
         // Obtener el documento
         const docSnap = await docRef.get();
 
-        if (!docSnap.exists) {
+        if (docSnap.empty) {
             return response;
         }
 
-        let contactsActivities: IContactsActivities = docSnap.data()?.activities.filter((act: IContactsActivities) => act.id === activityId)[0]
+        let contactsActivities: IContactsActivities = docSnap.docs.map((doc) => doc.data() as IContactsActivities).filter((act: IContactsActivities) => act.contactId === activityId)[0]
+
         return contactsActivities;
 
     } catch (error) {
@@ -97,17 +100,15 @@ export const saveActivityRepository = async (activity: IContactsActivities): Pro
         const companyName = getCompanyName();
         if (!companyName) throw new Error("Company name is not set");
 
-        const docRef = db.collection(companyName).doc("zContactsActivities");
+        const docRef = db.collection(companyName).doc("zContactsActivities").collection("activities");
+
         const docSnap = await docRef.get();
 
-        if (!docSnap.exists) {
+        if (docSnap.empty) {
             throw new Error("No se encontro el nombre");
         }
 
-        const activities: IContactsActivities[] = docSnap.data()?.activities ?? [];
-        activities.unshift(activity);
-
-        await docRef.update({ activities });
+        await docRef.add(activity);
         response.setSuccess("Actividad creada correctamente");
     } catch (error: any) {
         response.setError(error.message);
@@ -124,21 +125,18 @@ export const fulfillActivityRepository = async (activityId: string): Promise<Res
         const companyName = getCompanyName();
         if (!companyName) throw new Error("Company name is not set");
 
-        const docRef = db.collection(companyName).doc("zContactsActivities");
+        const docRef = db.collection(companyName).doc("zContactsActivities").collection("activities").doc(activityId);
         const docSnap = await docRef.get();
 
         if (!docSnap.exists) {
             throw new Error("No se encontro el nombre");
         }
 
-        const activities: IContactsActivities[] = docSnap.data()?.activities ?? [];
-        const index = activities.findIndex((a: IContactsActivities) => a.id === activityId);
+        await docRef.update({
+            fulfillDate: format(new Date(), 'full')
+        });
 
-        if (index !== -1) {
-            activities[index].fulfillDate = format(new Date(), 'full');
-            await docRef.update({ activities });
-            response.setSuccess("Actividad cumplida correctamente");
-        }
+        response.setSuccess("Actividad cumplida correctamente");
 
     } catch (error: any) {
         response.setError(error.message);
@@ -157,10 +155,10 @@ export const getPagedListContactsActivitiesRepository = async (search: SearchCon
         if (!companyName) {
             throw new Error("Company name is not set");
         }
-        const docRef = db.collection(companyName).doc("zContactsActivities");
+        const docRef = db.collection(companyName).doc("zContactsActivities").collection("activities");
         const docSnap = await docRef.get();
 
-        if (!docSnap.exists) {
+        if (docSnap.empty) {
             response.setError("No se encontraron actividades");
             return response;
         }
@@ -169,7 +167,7 @@ export const getPagedListContactsActivitiesRepository = async (search: SearchCon
         const users = await getUsersFromConfigRepository()
 
         // Crear un array de promesas
-        const activitiesPromises = docSnap.data()?.activities
+        const activitiesPromises = docSnap.docs.map((doc) => doc.data() as IContactsActivities)
             .filter((act: IContactsActivities) => act.fulfillDate === null)
             .map(async (ca: IContactsActivities) => {
                 const contact = await getContactByIdRepository(ca.contactId)
@@ -276,21 +274,17 @@ export const assignActivityRepository = async (userToAssignId: string, activityI
         const companyName = getCompanyName();
         if (!companyName) throw new Error("Company name is not set");
 
-        const docRef = db.collection(companyName).doc("zContactsActivities");
+        const docRef = db.collection(companyName).doc("zContactsActivities").collection("activities").doc(activityId);
+
         const docSnap = await docRef.get();
 
         if (!docSnap.exists) {
             throw new Error("No se encontro el nombre");
         }
 
-        const activities: IContactsActivities[] = docSnap.data()?.activities ?? [];
-        const index = activities.findIndex((a: IContactsActivities) => a.id === activityId);
-
-        if (index !== -1) {
-            activities[index].userId = userToAssignId;
-            await docRef.update({ activities });
-            response.setSuccess("Actividad asignada correctamente");
-        }
+        await docRef.update({
+            userId: userToAssignId
+        });
 
     } catch (error: any) {
         response.setError(error.message);
