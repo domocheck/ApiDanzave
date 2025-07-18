@@ -16,7 +16,7 @@ export const getAccountsStudentsActivesRepository = async (): Promise<IAccount[]
     const studentsActives = await getStudentsByStatus('activo');
     if (studentsActives && studentsActives.length > 0) {
         const activeIds = studentsActives.map((s) => s.id); // Extraer los IDs de los estudiantes activos
-        return (await getStudentsAccounts()).Items.filter((account) => activeIds.includes(account.idPerson)); // Filtrar cuentas por ID
+        return (await getStudentsAccountsByPersonIds(activeIds)).Items; // Filtrar cuentas por ID
     }
 
     return [];
@@ -30,16 +30,150 @@ export const getStudentsAccounts = async (): Promise<Account> => {
         if (!companyName) response.setError("Company name is not set");
 
         // Referencia al documento "accounts"
-        const docRef = db.collection(companyName).doc("studentsAccounts");
+        const docRef = db.collection(companyName).doc("studentsAccounts").collection("accounts");
         const docSnap = await docRef.get();
 
-        if (!docSnap.exists) {
+        if (docSnap.empty) {
             response.setError("No se encontraron cuentas");
             return response;
         }
 
         // Obtener solo la propiedad 'studentsAccounts' del documento
-        const studentsAccountsData = docSnap.data()?.studentsAccounts ?? [];
+        const studentsAccountsData = docSnap.docs.map((doc) => doc.data() as IAccount) ?? [];
+
+        // Filtrar directamente mientras se asigna a response.Items
+        response.Items = studentsAccountsData;
+        response.TotalItems = response.Items.length;
+
+        return response;
+    } catch (error) {
+        console.error("Error obteniendo asistencias:", error);
+        throw new Error("Error interno del servidor");
+    }
+}
+
+export const getTuitionStudentsAccounts = async (
+    year: string
+): Promise<Account> => {
+    let response = new Account();
+    try {
+        const companyName = getCompanyName();
+        if (!companyName) {
+            response.setError("Company name is not set");
+            return response;
+        }
+
+        let query = db
+            .collection(companyName)
+            .doc("studentsAccounts")
+            .collection("accounts") as FirebaseFirestore.Query;
+
+        if (year) {
+            query = query.where("year", "==", year);
+        }
+
+        const docSnap = await query.get();
+
+        if (docSnap.empty) {
+            response.setError("No se encontraron cuentas");
+            return response;
+        }
+
+        // Mapear los resultados
+        let studentsAccountsData = docSnap.docs.map((doc) => doc.data() as IAccount);
+
+        // Filtro adicional (no indexable) como `description.includes`
+        studentsAccountsData = studentsAccountsData.filter((acc) =>
+            acc.description?.toLowerCase().includes('matricula')
+        );
+
+        response.Items = studentsAccountsData;
+        response.TotalItems = studentsAccountsData.length;
+
+        return response;
+    } catch (error) {
+        console.error("Error obteniendo cuentas de alumnos:", error);
+        throw new Error("Error interno del servidor");
+    }
+};
+
+
+export const getStudentsAccountsByPersonIds = async (personIds: string[]): Promise<Account> => {
+    let response = new Account();
+    try {
+        const companyName = getCompanyName();
+        if (!companyName) response.setError("Company name is not set");
+
+        // Referencia al documento "accounts"
+        const docRef = db.collection(companyName).doc("studentsAccounts").collection("accounts")
+            .where("idPerson", "in", personIds);
+        const docSnap = await docRef.get();
+
+        if (docSnap.empty) {
+            response.setError("No se encontraron cuentas");
+            return response;
+        }
+
+        // Obtener solo la propiedad 'studentsAccounts' del documento
+        const studentsAccountsData = docSnap.docs.map((doc) => doc.data() as IAccount) ?? [];
+
+        // Filtrar directamente mientras se asigna a response.Items
+        response.Items = studentsAccountsData;
+        response.TotalItems = response.Items.length;
+
+        return response;
+    } catch (error) {
+        console.error("Error obteniendo asistencias:", error);
+        throw new Error("Error interno del servidor");
+    }
+}
+
+export const getPendingStudentsAccounts = async (): Promise<Account> => {
+    let response = new Account();
+    try {
+        const companyName = getCompanyName();
+        if (!companyName) response.setError("Company name is not set");
+
+        // Referencia al documento "accounts"
+        const docRef = db.collection(companyName).doc("studentsAccounts").collection("accounts").where("status", "==", "pending");
+        const docSnap = await docRef.get();
+
+        if (docSnap.empty) {
+            response.setError("No se encontraron cuentas");
+            return response;
+        }
+
+        // Obtener solo la propiedad 'studentsAccounts' del documento
+        const studentsAccountsData = docSnap.docs.map((doc) => doc.data() as IAccount) ?? [];
+
+        // Filtrar directamente mientras se asigna a response.Items
+        response.Items = studentsAccountsData;
+        response.TotalItems = response.Items.length;
+
+        return response;
+    } catch (error) {
+        console.error("Error obteniendo asistencias:", error);
+        throw new Error("Error interno del servidor");
+    }
+}
+
+export const getPendingTeachersAccounts = async (): Promise<Account> => {
+    let response = new Account();
+    try {
+        const companyName = getCompanyName();
+        if (!companyName) response.setError("Company name is not set");
+
+        // Referencia al documento "accounts"
+        const docRef = db.collection(companyName).doc("teachersAccounts").collection("accounts").where("status", "==", "pending");
+        const docSnap = await docRef.get();
+
+        if (docSnap.empty) {
+            response.setError("No se encontraron cuentas");
+            return response;
+        }
+
+        // Obtener solo la propiedad 'studentsAccounts' del documento
+        const studentsAccountsData = docSnap.docs.map((doc) => doc.data() as IAccount) ?? [];
 
         // Filtrar directamente mientras se asigna a response.Items
         response.Items = studentsAccountsData;
@@ -59,16 +193,18 @@ export const getStudentsAccountsByStatus = async (status: string): Promise<Accou
         if (!companyName) response.setError("Company name is not set");
 
         // Referencia al documento "accounts"
-        const docRef = db.collection(companyName).doc("studentsAccounts");
+        const docRef = db.collection(companyName).doc("studentsAccounts").collection("accounts")
+            .where("status", "==", status);
+
         const docSnap = await docRef.get();
 
-        if (!docSnap.exists) {
+        if (docSnap.empty) {
             response.setError("No se encontraron cuentas");
             return response;
         }
 
         // Obtener solo la propiedad 'studentsAccounts' del documento
-        const studentsAccountsData: IAccount[] = docSnap.data()?.studentsAccounts.filter((a: IAccount) => a.status === status) ?? [];
+        const studentsAccountsData: IAccount[] = docSnap.docs.map((doc) => doc.data() as IAccount) ?? [];
 
         // Filtrar directamente mientras se asigna a response.Items
         response.Items = studentsAccountsData;
@@ -88,19 +224,23 @@ export const getAccountsByStudentIdRepository = async (studentId: string): Promi
         if (!companyName) throw new Error("Company name is not set");
 
         // Referencia al documento "accounts"
-        const docRef = db.collection(companyName).doc("studentsAccounts");
+        const docRef = db.collection(companyName)
+            .doc("studentsAccounts")
+            .collection("accounts")
+            .where("idPerson", "==", studentId)
+            .where("status", "==", "pending");
+
         const docSnap = await docRef.get();
 
-        if (!docSnap.exists) {
+        if (docSnap.empty) {
             throw new Error("No se encontraron cuentas");
         }
 
         // Obtener solo la propiedad 'studentsAccounts' del documento
-        const studentsAccountsData: IAccount[] = docSnap.data()?.studentsAccounts ?? [];
+        const studentsAccountsData: IAccount[] = docSnap.docs.map((doc) => doc.data() as IAccount) ?? [];
 
-        const studentAccounts = studentsAccountsData.filter((account: IAccount) => account.idPerson === studentId);
 
-        response = studentAccounts;
+        response = studentsAccountsData;
     } catch (error) {
         console.error("Error obteniendo asistencias:", error);
         throw new Error("Error interno del servidor");
@@ -115,17 +255,20 @@ export const getAccountsByTeacherIdRepository = async (teacherId: string): Promi
         if (!companyName) throw new Error("Company name is not set");
 
         // Referencia al documento "accounts"
-        const docRef = db.collection(companyName).doc("teachersAccounts");
+        const docRef = db.collection(companyName).doc("teachersAccounts").collection("accounts")
+            .where("idPerson", "==", teacherId)
+            .where("status", "==", "pending");;
+
         const docSnap = await docRef.get();
 
-        if (!docSnap.exists) {
+        if (docSnap.empty) {
             throw new Error("No se encontraron cuentas");
         }
 
         // Obtener solo la propiedad 'teachersAccounts' del documento
-        const teachersAccountsData: IAccount[] = docSnap.data()?.teachersAccounts ?? [];
+        const teachersAccountsData: IAccount[] = docSnap.docs.map((doc) => doc.data() as IAccount) ?? [];
 
-        const teachersAccounts = teachersAccountsData.filter((account: IAccount) => account.idPerson === teacherId);
+        const teachersAccounts = teachersAccountsData;
 
         response = teachersAccounts;
     } catch (error) {
@@ -139,11 +282,41 @@ export const getAccountsTeachersActives = async () => {
     const teachersActives = await getTeachersActives();
     if (teachersActives && teachersActives.length > 0) {
         const activeIds = teachersActives.map((s) => s.id); // Extraer los IDs de los estudiantes activos
-        return (await getTeachersAccounts()).Items.filter((account) => activeIds.includes(account.idPerson)); // Filtrar cuentas por ID
+        return (await getTeachersAccountsByPersonIds(activeIds)).Items; // Filtrar cuentas por ID
     }
 
     return [];
 
+}
+
+export const getTeachersAccountsByPersonIds = async (personIds: string[]): Promise<Account> => {
+    let response = new Account();
+    try {
+        const companyName = getCompanyName();
+        if (!companyName) response.setError("Company name is not set");
+
+        // Referencia al documento "accounts"
+        const docRef = db.collection(companyName).doc("teachersAccounts").collection("accounts")
+            .where("idPerson", "in", personIds);
+        const docSnap = await docRef.get();
+
+        if (docSnap.empty) {
+            response.setError("No se encontraron cuentas");
+            return response;
+        }
+
+        // Obtener solo la propiedad 'studentsAccounts' del documento
+        const studentsAccountsData = docSnap.docs.map((doc) => doc.data() as IAccount) ?? [];
+
+        // Filtrar directamente mientras se asigna a response.Items
+        response.Items = studentsAccountsData;
+        response.TotalItems = response.Items.length;
+
+        return response;
+    } catch (error) {
+        console.error("Error obteniendo asistencias:", error);
+        throw new Error("Error interno del servidor");
+    }
 }
 
 export const getTeachersByStatus = async (status: string): Promise<ITeachers[]> => {
@@ -177,16 +350,17 @@ export const getTeachersAccounts = async (): Promise<Account> => {
         if (!companyName) response.setError("Company name is not set");
 
         // Referencia al documento "accounts"
-        const docRef = db.collection(companyName).doc("teachersAccounts");
+        const docRef = db.collection(companyName).doc("teachersAccounts").collection("accounts");
+
         const docSnap = await docRef.get();
 
-        if (!docSnap.exists) {
+        if (docSnap.empty) {
             response.setError("No se encontraron cuentas");
             return response;
         }
 
         // Obtener solo la propiedad 'teachersAccounts' del documento
-        const teachersAccountsData = docSnap.data()?.teachersAccounts ?? [];
+        const teachersAccountsData = docSnap.docs.map((doc) => doc.data() as IAccount) ?? [];
 
         // Filtrar directamente mientras se asigna a response.Items
         response.Items = teachersAccountsData;
@@ -199,62 +373,62 @@ export const getTeachersAccounts = async (): Promise<Account> => {
     }
 }
 
-export const updateAccountTeacherRepository = async (idAccount: string, monthly: number, type: string): Promise<ResponseMessages> => {
-    let response = new ResponseMessages();
+export const updateAccountTeacherRepository = async (
+    idAccount: string,
+    monthly: number,
+    type: string
+): Promise<ResponseMessages> => {
+    const response = new ResponseMessages();
+
     try {
         const companyName = getCompanyName();
-        if (!companyName) response.setError("Company name is not set");
-
-        // Referencia al documento "accounts"
-        const docRef = db.collection(companyName).doc("teachersAccounts");
-        const docSnap = await docRef.get();
-
-        if (!docSnap.exists) {
-            response.setError("No se encontraron cuentas");
+        if (!companyName) {
+            response.setError("Company name is not set");
             return response;
         }
 
-        // Obtener solo la propiedad 'teachersAccounts' del documento
-        const teachersAccountsData: IAccount[] = docSnap.data()?.teachersAccounts ?? [];
+        const accountRef = db
+            .collection(companyName)
+            .doc("teachersAccounts")
+            .collection("accounts")
+            .doc(idAccount);
 
-        let currentAccount = teachersAccountsData.filter((a) => a.id === idAccount)[0];
+        const docSnap = await accountRef.get();
+
+        if (!docSnap.exists) {
+            response.setError("Cuenta no encontrada");
+            return response;
+        }
+
+        const currentAccount = docSnap.data() as IAccount;
+
         let updatedAccount;
 
-        if (type === 'increase') {
+        if (type === "increase") {
             updatedAccount = {
-                ...currentAccount,
                 amount: currentAccount.amount + monthly,
                 balance: currentAccount.balance + monthly,
-                increase: monthly + (currentAccount.increase || 0),
+                increase: (currentAccount.increase || 0) + monthly,
             };
         } else {
             updatedAccount = {
-                ...currentAccount,
                 amount: currentAccount.amount - monthly,
                 balance: currentAccount.balance - monthly,
-                discounts: monthly + (currentAccount.discounts || 0),
+                discounts: (currentAccount.discounts || 0) + monthly,
             };
         }
 
-        const index = teachersAccountsData.findIndex((account: IAccount) => account.id === currentAccount.id);
-        teachersAccountsData[index] = updatedAccount;
+        await accountRef.update(updatedAccount);
 
-        docRef.update({
-            teachersAccounts: teachersAccountsData,
-        }).then(() => {
-            response.setSuccess('Cuenta modificada con exito');
-            return response;
-        }).catch((error) => {
-            console.error("Error obteniendo cuentas:", error);
-            response.setError("Error interno del servidor");
-        });
+        response.setSuccess("Cuenta modificada con éxito");
         return response;
-    } catch (error) {
-        console.error("Error obteniendo cuentas:", error);
+
+    } catch (error: any) {
+        console.error("Error actualizando la cuenta:", error);
         response.setError("Error interno del servidor");
         return response;
     }
-}
+};
 
 export const getStudentAccountByAccountIdRepository = async (accountId: string): Promise<IAccount> => {
     let response = {} as IAccount;
@@ -262,16 +436,18 @@ export const getStudentAccountByAccountIdRepository = async (accountId: string):
         const companyName = getCompanyName();
         if (!companyName) throw new Error("Company name is not set");
 
-        const docRef = db.collection(companyName).doc("studentsAccounts");
+        const docRef = db.collection(companyName).doc("studentsAccounts").collection("accounts")
+            .where("id", "==", accountId);
+
         const docSnap = await docRef.get();
 
-        if (!docSnap.exists) {
+        if (docSnap.empty) {
             throw new Error("No se encontraron cuentas");
         }
 
-        const studentsAccountsData: IAccount[] = docSnap.data()?.studentsAccounts ?? [];
+        const studentsAccountsData: IAccount[] = docSnap.docs.map((doc) => doc.data() as IAccount) ?? [];
 
-        const account = studentsAccountsData.filter(a => a.id === accountId)[0];
+        const account = studentsAccountsData[0];
 
         response = account;
 
@@ -288,16 +464,17 @@ export const getTeacherAccountByAccountIdRepository = async (accountId: string):
         const companyName = getCompanyName();
         if (!companyName) throw new Error("Company name is not set");
 
-        const docRef = db.collection(companyName).doc("teachersAccounts");
+        const docRef = db.collection(companyName).doc("teachersAccounts").collection("accounts")
+            .where("id", "==", accountId);
         const docSnap = await docRef.get();
 
-        if (!docSnap.exists) {
+        if (docSnap.empty) {
             throw new Error("No se encontraron cuentas");
         }
 
-        const teachersAccountsData: IAccount[] = docSnap.data()?.teachersAccounts ?? [];
+        const teachersAccountsData: IAccount[] = docSnap.docs.map((doc) => doc.data() as IAccount) ?? [];
 
-        const account = teachersAccountsData.filter(a => a.id === accountId)[0];
+        const account = teachersAccountsData[0];
 
         response = account;
 
@@ -315,14 +492,15 @@ export const getAccountByAccountIdAndType = async (accountId: string, type: stri
         const companyName = getCompanyName();
         if (!companyName) throw new Error("Company name is not set");
 
-        const docRef = db.collection(companyName).doc(type);
+        const docRef = db.collection(companyName).doc(type).collection("accounts");
+
         const docSnap = await docRef.get();
 
-        if (!docSnap.exists) {
+        if (!docSnap.empty) {
             throw new Error("No se encontraron cuentas");
         }
 
-        const accountsData: IAccount[] = docSnap.data()?.[type] ?? [];
+        const accountsData: IAccount[] = docSnap.docs.map((doc) => doc.data() as IAccount) ?? [];
         let currentAccount = accountsData.filter((a) => a.id === accountId)[0];
 
         response = currentAccount
@@ -338,15 +516,15 @@ export const editAccountRepository = async (editAccount: EditAccount): Promise<R
         const companyName = getCompanyName();
         if (!companyName) throw new Error("Company name is not set");
 
-        const docRef = db.collection(companyName).doc(editAccount.type);
+        const docRef = db.collection(companyName).doc(editAccount.type).collection("accounts").doc(editAccount.accountId);
+
         const docSnap = await docRef.get();
 
         if (!docSnap.exists) {
             throw new Error("No se encontraron cuentas");
         }
 
-        const accountsData: IAccount[] = docSnap.data()?.[editAccount.type] ?? [];
-        let currentAccount = accountsData.filter((a) => a.id === editAccount.accountId)[0];
+        let currentAccount = docSnap.data() as IAccount;
         let updatedAccount;
 
         const totalPaid = currentAccount.paymentsMethods.reduce((acc, p) => acc + p.value, 0);
@@ -361,7 +539,6 @@ export const editAccountRepository = async (editAccount: EditAccount): Promise<R
         }
 
         updatedAccount = {
-            ...currentAccount,
             amount: editAccount.amount,
             eftAmount: editAccount.eftAmount,
             balance: editAccount.amount - totalPaid,
@@ -369,12 +546,8 @@ export const editAccountRepository = async (editAccount: EditAccount): Promise<R
             status: isSettleAccount ? 'paid' : 'pending',
         };
 
-        const index = accountsData.findIndex((account: IAccount) => account.id === currentAccount.id);
-        accountsData[index] = updatedAccount;
 
-        await docRef.update({
-            [editAccount.type]: accountsData,
-        });
+        await docRef.update(updatedAccount);
 
         response.setSuccess('Cuenta modificada con exito');
         return response;
@@ -391,22 +564,17 @@ export const updateAccountByEditMovementRepository = async (account: IAccount, t
         const companyName = getCompanyName();
         if (!companyName) throw new Error("Company name is not set");
 
-        const docRef = db.collection(companyName).doc(type);
+        const docRef = db.collection(companyName).doc(type).collection("accounts").doc(account.id);
+
         const docSnap = await docRef.get();
 
         if (!docSnap.exists) {
             throw new Error("No se encontraron cuentas");
         }
 
-        const accountsData: IAccount[] = docSnap.data()?.[type] ?? [];
-        let currentAccount = accountsData.filter((a) => a.id === account.id)[0];
+        let currentAccount = docSnap.data() as IAccount;
 
-        const index = accountsData.findIndex((account: IAccount) => account.id === currentAccount.id);
-        accountsData[index] = account;
-
-        await docRef.update({
-            [type]: accountsData
-        })
+        await docRef.set(account as { [x: string]: any }, { merge: true });
         response.setSuccess('Cuenta modificada con exito');
     } catch (error: any) {
         response.setError(error.message);
@@ -415,92 +583,86 @@ export const updateAccountByEditMovementRepository = async (account: IAccount, t
     return response;
 }
 
-export const settleAccountRepository = async (currentAccount: IAccount, type: string, paymentsMethods: PaymentMethod[]): Promise<ResponseMessages> => {
-    let response = new ResponseMessages();
+
+export const settleAccountRepository = async (
+    currentAccount: IAccount,
+    type: string,
+    paymentsMethods: PaymentMethod[]
+): Promise<ResponseMessages> => {
+    const response = new ResponseMessages();
+
     try {
         const companyName = getCompanyName();
         if (!companyName) throw new Error("Company name is not set");
-        const referenceSearch =
-            type === 'student' || type === 'receipt' ? 'studentsAccounts' : 'teachersAccounts';
 
-        const docRef = db.collection(companyName).doc(referenceSearch);
+        const reference = type === 'student' ? 'studentsAccounts' : 'teachersAccounts';
+        const docRef = db
+            .collection(companyName)
+            .doc(reference)
+            .collection("accounts")
+            .doc(currentAccount.id); // ✅ Referencia al documento exacto
+
         const docSnap = await docRef.get();
-
         if (!docSnap.exists) {
-            throw new Error("No se encontraron cuentas");
+            throw new Error("No se encontró la cuenta");
         }
 
-        const accountsData: IAccount[] = docSnap.data()?.[referenceSearch] ?? [];
-        if (currentAccount) {
-            //10000
-            const currentPaid = paymentsMethods.reduce((acc, item) => acc + item.value, 0); // 5000
-            const accountPaid = currentAccount.paymentsMethods.reduce(
-                (acc, item) => acc + item.value,
-                0,
-            ); // 5000;
-            const totalPaid = currentPaid + accountPaid; // 10000;
+        const currentPaid = paymentsMethods.reduce((acc, item) => acc + item.value, 0);
+        const accountPaid = currentAccount.paymentsMethods.reduce((acc, item) => acc + item.value, 0);
+        const totalPaid = currentPaid + accountPaid;
 
-            const mergedPaymentsMethods = [...currentAccount.paymentsMethods];
+        const mergedPaymentsMethods = [...currentAccount.paymentsMethods];
 
-            paymentsMethods.forEach((newPayment) => {
-                const existingPaymentIndex = mergedPaymentsMethods.findIndex(
-                    (payment) => payment.idPayment === newPayment.idPayment,
-                );
+        paymentsMethods.forEach((newPayment) => {
+            const existingPaymentIndex = mergedPaymentsMethods.findIndex(
+                (payment) => payment.idPayment === newPayment.idPayment
+            );
 
-                if (existingPaymentIndex !== -1) {
-                    // Si el método de pago ya existe, actualiza su valor
-                    mergedPaymentsMethods[existingPaymentIndex].value += newPayment.value;
-                } else {
-                    // Si es un método de pago nuevo, agrégalo
-                    mergedPaymentsMethods.push(newPayment);
-                }
-            });
+            if (existingPaymentIndex !== -1) {
+                mergedPaymentsMethods[existingPaymentIndex].value += newPayment.value;
+            } else {
+                mergedPaymentsMethods.push(newPayment);
+            }
+        });
 
-            const amount = currentAccount.isPaidWhitEft ? currentAccount.eftAmount : currentAccount.amount;
-            const status = amount - totalPaid === 0 || amount === 0 ? 'paid' : 'pending';
+        const amount = currentAccount.isPaidWhitEft
+            ? currentAccount.eftAmount
+            : currentAccount.amount;
 
-            const updatedAccount = {
-                ...currentAccount,
-                status,// paid
-                balance: amount - totalPaid,
-                eftBalance: currentAccount.eftAmount - totalPaid,
-                paymentsMethods: mergedPaymentsMethods,
-                settleDate: format(new Date(), 'full'),
-                amount: status === 'paid' ? amount : currentAccount.amount,
-                eftAmount: status === 'paid' ? amount : currentAccount.eftAmount,
-            };
+        const status = amount - totalPaid === 0 || amount === 0 ? "paid" : "pending";
 
-            // Encontrar y actualizar el índice de currentAccount en el array accounts
-            const index = accountsData.findIndex((account: IAccount) => account.id === currentAccount.id);
-            accountsData[index] = updatedAccount;
-            await docRef.update({
-                [referenceSearch]: accountsData,
-            });
+        const updatedAccount = {
+            status,
+            balance: amount - totalPaid,
+            eftBalance: currentAccount.eftAmount - totalPaid,
+            paymentsMethods: mergedPaymentsMethods,
+            settleDate: format(new Date(), 'full'), // ✅ formato válido
+            amount: status === "paid" ? amount : currentAccount.amount,
+            eftAmount: status === "paid" ? amount : currentAccount.eftAmount,
+        };
 
-            response.setSuccess('Cuenta modificada con exito');
-        }
-        else {
-            response.setWarning('No se encontraron cuentas');
-        }
-    }
-    catch (error: any) {
+        // ✅ Actualizar campos usando merge
+        await docRef.set(updatedAccount, { merge: true });
+
+        response.setSuccess("Cuenta modificada con éxito");
+
+    } catch (error: any) {
+        console.log(error);
         response.setError(error.message);
-        return response;
     }
-    return response;
 
-}
+    return response;
+};
+
 
 export const generateAccountPersonRepository = async (
     person: IStudents | ITeachers,
     type: string,
     regularPrice: number,
-    eftPrice: null | number = null,
+    eftPrice: number | null = null,
     desc = ""
 ): Promise<ResponseMessages> => {
-    let response = new ResponseMessages()
-    const referenceSearch =
-        type === 'students' || type === 'receipt' ? 'studentsAccounts' : 'teachersAccounts';
+    const response = new ResponseMessages();
     const month = new Date().getMonth() + 1;
     const year = new Date().getFullYear();
 
@@ -508,53 +670,53 @@ export const generateAccountPersonRepository = async (
         const companyName = getCompanyName();
         if (!companyName) throw new Error("Company name is not set");
 
-        const docRef = db.collection(companyName).doc(referenceSearch);
-        const docSnap = await docRef.get();
-
-        if (!docSnap.exists) {
-            throw new Error("No se encontraron cuentas");
-        }
-
-        const accountsData: IAccount[] = docSnap.data()?.[referenceSearch] ?? [];
+        const accountId = uuidv4();
         const regularDiscount = getDiscount(person.discount, regularPrice);
         const eftDiscount = getDiscount(person.discount, eftPrice);
-        const description = desc || (type === 'students' ? 'Abono mensual' : 'Liquidacion mensual');
 
-        const newAccount = {
-            id: uuidv4(),
+        const discountedAmount = regularPrice - (regularDiscount || 0);
+        const discountedEftAmount =
+            eftPrice != null ? eftPrice - (eftDiscount || 0) : discountedAmount;
+
+        const description =
+            desc || (type === "students" ? "Abono mensual" : "Liquidación mensual");
+
+        const newAccount: IAccount = {
+            id: accountId,
             idPerson: person.id,
             month,
             year,
             paymentsMethods: [],
-            amount: regularPrice - (regularDiscount ? +regularDiscount : 0),
-            balance: regularPrice - (regularDiscount ? +regularDiscount : 0),
-            status: 'pending',
+            amount: discountedAmount,
+            balance: discountedAmount,
+            status: "pending",
             settleDate: null,
             description,
-            eftBalance: eftPrice
-                ? eftPrice - (eftDiscount ? +eftDiscount : 0)
-                : regularPrice - (regularDiscount ? +regularDiscount : 0),
-            eftAmount: eftPrice
-                ? eftPrice - (eftDiscount ? +eftDiscount : 0)
-                : regularPrice - (regularDiscount ? +regularDiscount : 0),
+            eftAmount: discountedEftAmount,
+            eftBalance: discountedEftAmount,
             discounts: 0,
             increase: 0,
-            isPaidWhitEft: type === 'students' || type === 'receipt' ? true : false,
+            isPaidWhitEft: type === "students" || type === "receipt",
         };
 
-        accountsData.push(newAccount);
+        // Guardar la cuenta como documento individual
+        const docRef = db
+            .collection(companyName)
+            .doc(type)
+            .collection("accounts")
+            .doc(accountId);
 
-        await docRef.update({
-            [referenceSearch]: accountsData,
-        });
+        await docRef.set(newAccount);
 
-        response.setSuccess('Cuenta creada con exito');
+        response.setSuccess("Cuenta creada con éxito");
     } catch (error: any) {
+        console.error(error);
         response.setError(error.message);
-        return response
     }
+
     return response;
-}
+};
+
 
 export const generateAccountRepository = async (
     generateAccount: GenerateAccount
@@ -569,14 +731,6 @@ export const generateAccountRepository = async (
         const companyName = getCompanyName();
         if (!companyName) throw new Error("Company name is not set");
 
-        const docRef = db.collection(companyName).doc(referenceSearch);
-        const docSnap = await docRef.get();
-
-        if (!docSnap.exists) {
-            throw new Error("No se encontraron cuentas");
-        }
-
-        const accountsData: IAccount[] = docSnap.data()?.[referenceSearch] ?? [];
         const description = generateAccount.description || (generateAccount.type === 'students' ? 'Abono mensual' : 'Liquidacion mensual');
 
         const newAccount = {
@@ -595,13 +749,14 @@ export const generateAccountRepository = async (
             isPaidWhitEft: generateAccount.eftAmount < generateAccount.amount,
         };
 
-        accountsData.push(newAccount);
-        console.log(newAccount)
+        // Guardar la cuenta como documento individual
+        const docRef = db
+            .collection(companyName)
+            .doc(referenceSearch)
+            .collection("accounts")
+            .doc(newAccount.id);
 
-        await docRef.update({
-            [referenceSearch]: accountsData,
-        });
-
+        await docRef.set(newAccount);
         response.setSuccess('Cuenta creada con exito');
     } catch (error: any) {
         response.setError(error.message);

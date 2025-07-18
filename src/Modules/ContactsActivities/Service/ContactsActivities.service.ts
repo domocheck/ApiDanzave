@@ -11,7 +11,7 @@ import { getContactByIdRepository, saveContactRepository } from "../../Contacts/
 import { addStudentToClassRepository, checkIsPersonOnClasseRepository, getClassesByStatusRepository, getClassesGropuedRepository, removeStudentToClassRepository } from "../../Classes/Repository/Classes.repository";
 import { getPaymentsMethods } from "../../Config/Controller/Config.controller";
 import { getPaymentsMethodsFromConfigRepository, getUsersFromConfigRepository } from "../../Config/Repository/Config.repository";
-import { getMovementByIdRepository, getMovementByPersonIdRepository } from "../../Drawers/Repository/Drawer.repository";
+import { getMovementByPersonIdRepository } from "../../Drawers/Repository/Drawer.repository";
 import { removeStudentFromClass } from "../../Classes/Controller/Classes.controller";
 import { removeStudentFromClassService } from "../../Classes/Service/Classes.service";
 import { convertedContactToStudentService } from "../../Students/Service/Students.service";

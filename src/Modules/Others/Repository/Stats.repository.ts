@@ -1,7 +1,7 @@
 import { format } from "@formkit/tempo";
 import { db } from "../../../Firebase/firebase";
 import { IAccount } from "../../Accounts/Models/Accounts.models";
-import { getStudentsAccounts } from "../../Accounts/Repository/Accounts.repository";
+import { getStudentsAccounts, getStudentsAccountsByStatus, getTuitionStudentsAccounts } from "../../Accounts/Repository/Accounts.repository";
 import { IAssists, StudentsAssists } from "../../Assists/Models/Assists.models";
 import { getAssistsByClassId, getAssistsByPersonId, getAssistsRepository } from "../../Assists/Repository/Assists.repository";
 import { getAssistByClassIdService } from "../../Assists/Service/Assists.service";
@@ -364,7 +364,7 @@ export const getPagedListContactsProofClassRepository = async (search: SearchPag
 export const getPagedListEnrolledStudentsRepository = async (search: SearchPagedListEnrolledStudents): Promise<PagedListEnrolledStudents> => {
     const response = new PagedListEnrolledStudents();
     try {
-        let studentsAccounts = (await getStudentsAccounts()).Items;
+        let studentsAccounts = (await getTuitionStudentsAccounts(search.Year)).Items;
         const studentsIds = new Set(studentsAccounts.map(sp => sp.idPerson))
         let enrolledStudents: IPagedListEnrolledStudent[] = [];
 
@@ -375,9 +375,7 @@ export const getPagedListEnrolledStudentsRepository = async (search: SearchPaged
                     let matchingTuitionPayment: IAccount | undefined = {} as IAccount;
 
                     matchingTuitionPayment = studentsAccounts.find(sp =>
-                        sp.idPerson === student?.id &&
-                        sp.year === +search.Year &&
-                        sp.description?.toLowerCase().includes('matricula')
+                        sp.idPerson === student?.id
                     );
 
                     if (search.Month) {
@@ -783,8 +781,7 @@ export const getPagedListSaleStatsRepository = async (search: SearchPagedListSal
 export const getPagedListAccountsExpirationRepository = async (search: SearchPagedListAccountExpirations): Promise<PagedListAccountExpirations> => {
     const response = new PagedListAccountExpirations();
     try {
-        let accountsPaid = (await getStudentsAccounts()).Items.reverse()
-            .filter((a) => a.status === 'paid');
+        let accountsPaid = (await getStudentsAccountsByStatus('paid')).Items.reverse();
         let expirationDays = Number((await getExpirationDaysFromConfigRepository())[0].name)
 
         const latestAccounts = new Map<string, any>();

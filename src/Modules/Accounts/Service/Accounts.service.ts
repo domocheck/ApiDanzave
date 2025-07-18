@@ -8,7 +8,7 @@ import { getFullNameStudentById, getStudentByIdRepository, getStudentsActives, g
 import { ITeachers } from "../../Teachers/Models/Teachers.models";
 import { getFullNameTeacherById, getTeacherById, getTeachersActives } from "../../Teachers/Repository/Teachers.repository";
 import { Account, AccountWhitDebt, EditAccount, GenerateAccount, IAccount, SettleAccount, SettleAccountInd, SettleAccountResponse, SettleFormInfo, StatusAccountInd, StatusAccountStudent, StatusAccountTeacher } from "../Models/Accounts.models";
-import { editAccountRepository, generateAccountPersonRepository, generateAccountRepository, getAccountsByStudentIdRepository, getAccountsByTeacherIdRepository, getAccountsStudentsActivesRepository, getAccountsTeachersActives, getStudentAccountByAccountIdRepository, getStudentsAccounts, getStudentsAccountsByStatus, getTeacherAccountByAccountIdRepository, getTeachersAccounts, getTeachersByStatus, settleAccountRepository, updateAccountTeacherRepository } from "../Repository/Accounts.repository";
+import { editAccountRepository, generateAccountPersonRepository, generateAccountRepository, getAccountsByStudentIdRepository, getAccountsByTeacherIdRepository, getAccountsStudentsActivesRepository, getAccountsTeachersActives, getPendingStudentsAccounts, getPendingTeachersAccounts, getStudentAccountByAccountIdRepository, getStudentsAccounts, getStudentsAccountsByPersonIds, getStudentsAccountsByStatus, getTeacherAccountByAccountIdRepository, getTeachersAccounts, getTeachersByStatus, settleAccountRepository, updateAccountTeacherRepository } from "../Repository/Accounts.repository";
 import { v4 as uuidv4 } from 'uuid';
 import { saveMovementService } from "../../Drawers/Service/Drawer.service";
 import { IPagedListUnpaidAccount, PagedListAccounts, PagedListUnpaidAccounts, SearchPagedListAccounts, SearchPagedListUnpaidAccounts } from "../Models/Accounts-paged-list.models";
@@ -80,7 +80,7 @@ export const getAccountsStudentsActivesService = async (): Promise<Account> => {
         const studentsActives = await getStudentsByStatus('activo');
         if (studentsActives && studentsActives.length > 0) {
             const activeIds = studentsActives.map((s) => s.id); // Extraer los IDs de los estudiantes activos
-            response.Items = (await getStudentsAccounts()).Items.filter((account) => activeIds.includes(account.idPerson)).map((a) => {
+            response.Items = (await getStudentsAccountsByPersonIds(activeIds)).Items.map((a) => {
                 return {
                     ...a,
                     isPaidWhitEft: a.paymentsMethods.length > 0 ? a.paymentsMethods.every(p => p.value > 0 && p.idPayment === paymentEft?.id) : true
@@ -252,10 +252,10 @@ export const settleAccountService = async (settleAccounts: SettleAccount[]): Pro
         let items: SettleAccountInd[] = [];
         for (let settleAccount of settleAccounts) {
             const settle = await settleAccountRepository(settleAccount.account, settleAccount.type, settleAccount.paymentsMethods)
-            if (settle.hasErrors()) {
-                response.setError('Error interno del servidor, intente nuevamente');
-                return response;
-            }
+            // if (settle.hasErrors()) {
+            //     response.setError('Error interno del servidor, intente nuevamente');
+            //     return response;
+            // }
 
             const newMovement: IMovement = {
                 id: uuidv4(),
@@ -301,9 +301,8 @@ export const getPagedListAccountsService = async (search: SearchPagedListAccount
     let response = new PagedListAccounts();
     try {
         const limit = await getLimit()
-        const typeAccounts = search.Type === 'students' ? await getStudentsAccounts() : await getTeachersAccounts();
+        const typeAccounts = search.Type === 'students' ? await getPendingStudentsAccounts() : await getPendingTeachersAccounts();
         const typeArray = search.Type === 'students' ? await getStudentsByStatus('activo') : await getTeachersByStatus('activo');
-
         const processedIds = new Set();
 
         let accounts = typeAccounts.Items.map((account: IAccount) => {
@@ -367,7 +366,7 @@ export const getPagedListAccountsService = async (search: SearchPagedListAccount
 
         response.TotalItems = accounts.length;
         response.PageSize = limit;
-        response.TotalDebt = accounts.filter(a => a.status === 'pending').reduce((acc, a) => acc + a.amount, 0);
+        response.TotalDebt = accounts.reduce((acc, a) => acc + a.amount, 0);
         response.TotalPaidAccounts = accounts.filter(a => a.status === 'paid').length;
 
         if (search.Page > 0) {

@@ -16,6 +16,7 @@ export interface EditMovement {
     balance: number;
     paymentsMethods: PaymentMethod[];
     movementId: string;
+    drawerId: string
 }
 
 export interface EditMovementAndUpdateAccount {
@@ -25,6 +26,7 @@ export interface EditMovementAndUpdateAccount {
     movementId: string;
     account: IAccount;
     type: string;
+    drawerId: string
 }
 
 export interface IMovement {
@@ -39,6 +41,7 @@ export interface IMovement {
     idAccount?: string | null;
     displayNamePerson?: string;
     isCashDrawerOpen?: boolean;
+    drawerId?: string
 }
 
 export interface MoveByPayments {

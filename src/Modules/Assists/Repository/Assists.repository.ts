@@ -128,8 +128,6 @@ export const getAssistsByDateRepository = async (date: Date): Promise<IAssists[]
             throw new Error("No se encontraron asistencias");
         }
         const dateSearch = format(date, 'full');
-        console.log(dateSearch)
-        console.log(date)
         // Obtener solo la propiedad 'assists' del documento
         return docSnap.data()?.assists.filter((as: IAssists) => as.date === dateSearch) ?? [];
 

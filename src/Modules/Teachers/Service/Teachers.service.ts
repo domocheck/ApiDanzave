@@ -54,8 +54,6 @@ export const saveTeacherService = async (teacher: ITeachers): Promise<ResponseMe
     for (let classe of classesToModify) {
         try {
             const currentClass = await getClassByIdRepository(classe);
-            console.log(currentClass)
-            console.log(teacher)
             if (currentClass!.idTeacher && currentClass!.idTeacher !== teacher.id) {
                 await replaceTeacherRepository(
                     currentClass!.idTeacher,

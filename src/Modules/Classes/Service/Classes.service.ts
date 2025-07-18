@@ -57,7 +57,6 @@ export const changeClassStatusService = async (classeId: string, newStatus: stri
                         response.setError('Error al remover estudiante de la clase');
                         return response;
                     }
-                    console.log(student)
                 }
 
             }
@@ -68,7 +67,6 @@ export const changeClassStatusService = async (classeId: string, newStatus: stri
                     response.setError('Error al remover maestra de la clase');
                     return response;
                 }
-                console.log(classe.idTeacher)
             }
 
         } else {
@@ -210,7 +208,6 @@ export const changeJuvetActivityStatusService = async (activityId: string, newSt
                         response.setError('Error al remover estudiante de la clase');
                         return response;
                     }
-                    console.log(student)
                 }
 
             }
@@ -221,7 +218,6 @@ export const changeJuvetActivityStatusService = async (activityId: string, newSt
                     response.setError('Error al remover maestra de la clase');
                     return response;
                 }
-                console.log(classe.idTeacher)
             }
 
         } else {

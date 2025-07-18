@@ -1,8 +1,13 @@
+import { format } from "@formkit/tempo";
+
 export const formatDateToDate = (date: string) => {
     const regex = /(\d{1,2}) de (\w+) de (\d{4})/;
     const match = date.match(regex);
 
     if (!match) {
+        const newDate = new Date(date);
+        if (!isNaN(newDate.getTime())) formatDateToDate(format(newDate, 'full'));
+        console.log(date, formatDateToDate(format(newDate, 'full')))
         throw new Error("Formato de fecha no válido");
     }
 
