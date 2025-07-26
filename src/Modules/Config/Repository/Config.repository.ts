@@ -993,7 +993,7 @@ export const getPagedListPricesRepository = async (search: SearchPagedListPrices
         const docSnap = await docRef.get();
 
         if (!docSnap.exists) {
-            response.setError("No se encontraron configuraciones");
+            response.setWarning("No se encontraron configuraciones");
             return response;
         }
 

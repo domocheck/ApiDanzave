@@ -3,12 +3,12 @@ import { db } from "../../../Firebase/firebase";
 import { IAccount } from "../../Accounts/Models/Accounts.models";
 import { getStudentsAccounts, getStudentsAccountsByStatus, getTuitionStudentsAccounts } from "../../Accounts/Repository/Accounts.repository";
 import { IAssists, StudentsAssists } from "../../Assists/Models/Assists.models";
-import { getAssistsByClassId, getAssistsByPersonId, getAssistsRepository } from "../../Assists/Repository/Assists.repository";
+import { getAssistsByClassId, getAssistsByPersonId, getAssistsByTeacherIdAndClassRepository, getAssistsRepository } from "../../Assists/Repository/Assists.repository";
 import { getAssistByClassIdService } from "../../Assists/Service/Assists.service";
 import { Sale } from "../../Boutique/Models/Sale.models";
 import { getProductsRepository, getSalesRepository } from "../../Boutique/Repository/Boutique.respository";
-import { ClassAssist } from "../../Classes/Models/classes.models";
-import { getClassByIdRepository, getClasses, getClassesByStatusRepository, getClassesRepository } from "../../Classes/Repository/Classes.repository";
+import { ClassAssist, IClasses } from "../../Classes/Models/classes.models";
+import { getClassByIdRepository, getClassesByStatusRepository, getClassesRepository } from "../../Classes/Repository/Classes.repository";
 import { getExpirationDaysFromConfigRepository, getHoursFromConfigRepository, getLimit, getPaymentsMethodsFromConfigRepository, getRangesFromConfigRepository, getReasonsFromConfigRepository } from "../../Config/Repository/Config.repository";
 import { IContacts } from "../../Contacts/Models/Contact.models";
 import { getContactByIdRepository, getContactsByStatusRepository } from "../../Contacts/Repository/Contacts.repository";
@@ -33,6 +33,7 @@ import { IPagedListPBS, PagedListPBS, SearchPagedListPBS } from "../Models/Stats
 import { IPagedListSalesStat, PagedListSalesStats, SearchPagedListSalesStats } from "../Models/Stats/Sales-stats-paged-list.model";
 import { IPagedListStudentsActives, PagedListStudentsActives, SearchPagedListStudentsActives } from "../Models/Stats/Students-actives-paged-list.model";
 import { IPagedListStudentsInactives, PagedListStudentsInactives, SearchPagedListStudentsInactives } from "../Models/Stats/Students-inactives-paged-list.model";
+import { ITeachers } from "../../Teachers/Models/Teachers.models";
 
 export const getPagedListPBSRepository = async (search: SearchPagedListPBS): Promise<PagedListPBS> => {
     const response = new PagedListPBS();
@@ -46,7 +47,7 @@ export const getPagedListPBSRepository = async (search: SearchPagedListPBS): Pro
         const docSnap = await docRef.get();
 
         if (!docSnap.exists) {
-            response.setError("No se encontraron esudiantes");
+            response.setWarning("No se encontraron esudiantes");
             return response;
         }
 
@@ -120,7 +121,7 @@ export const getPagedListPaymentMethodRepository = async (search: SearchPagedLis
         const docSnap = await docRef.get();
 
         if (!docSnap.exists) {
-            response.setError("No se encontraron esudiantes");
+            response.setWarning("No se encontraron esudiantes");
             return response;
         }
 
@@ -297,7 +298,9 @@ export const getPagedListContactsProofClassRepository = async (search: SearchPag
     try {
         let activeContacts = await getContactsByStatusRepository('activo');
         let assists = await getAssistsRepository();
-        let classes = await getClasses()
+        let uniqueClassIds = Array.from(new Set(assists.map(a => a.idClass)));
+        let classesPromise = uniqueClassIds.map(async (id) => await getClassByIdRepository(id));
+        let classes = await Promise.all(classesPromise);
         let contacts: IPagedListContactsProofClass[] = [];
 
         for (let contact of activeContacts) {
@@ -317,7 +320,7 @@ export const getPagedListContactsProofClassRepository = async (search: SearchPag
                             id: contact.id,
                             fullName: `${contact.name} ${contact.lastName}`,
                             date: assist.date as string,
-                            className: classes.find((c) => c.id === assist.idClass)?.dance ?? "Sin clase",
+                            className: classes.find((c: IClasses) => c.id === assist.idClass)?.dance ?? "Sin clase",
                             classId: assist.idClass,
                         });
                     }
@@ -470,8 +473,7 @@ export const getAssistsByDateRepository = async (date: string, classeId: string)
 export const getAssistsControlRepository = async (day: string, year: string, teacherId: string): Promise<AssistsControlResponse> => {
     const response = new AssistsControlResponse();
     try {
-        const assistsDb = await getAssistsRepository();
-        const classesDb = await getClasses()
+        const assistsDb = await getAssistsByTeacherIdAndClassRepository(teacherId);
         const classesInactives = assistsDb
             .filter((a) => {
                 const aDate = a.date.toString();
@@ -479,16 +481,15 @@ export const getAssistsControlRepository = async (day: string, year: string, tea
                 const assistYear = aDate.substring(aDate.lastIndexOf(' ') + 1);
 
                 return (
-                    a.idTeacher === teacherId &&
-                    a.idClass !== null &&
                     day.toLowerCase() === assistDay &&
                     year === assistYear
                 );
             })
             .map((a) => a.idClass);
-
-        const classesByTeacherId = classesDb
-            .filter((c) => classesInactives.includes(c.id));
+        const uniqueClassIds = Array.from(new Set(classesInactives.map(a => a)));
+        const classesPromise = uniqueClassIds.map(async (id) => await getClassByIdRepository(id));
+        const classesDB = await Promise.all(classesPromise);
+        const classesByTeacherId = classesDB
 
         let classes: ClassAssist[] = [];
         let assists: IAssists[] = [];
@@ -653,6 +654,7 @@ export const getPagedListAvgAssistsRepository = async (search: SearchPagedListAv
         if (search.Student) arrayPersons.push(...search.Student)
         if (search.Teacher) arrayPersons.push(...search.Teacher)
         let personsFiltered = generateArrayPersons(arrayPersons, students, teachers)
+
         personsFiltered = await Promise.all(personsFiltered.map(async (person) => {
             let assists = (await getAssistsByPersonId(person.id)).Items;
 
@@ -706,16 +708,15 @@ export const getPagedListAvgAssistsRepository = async (search: SearchPagedListAv
 export const getHistoryClassesRepository = async (year: string, monthStart: number, monthEnd: number): Promise<HistoryClassesResponse> => {
     const response = new HistoryClassesResponse();
     try {
-        const [classes, assists, teachers, hours, ranges] = await Promise.all([
-            getClasses(),
+        const [assists, teachers, hours, ranges] = await Promise.all([
             getAssistsRepository(),
             getTeachersRepository(),
             getHoursFromConfigRepository(),
             getRangesFromConfigRepository()]);
-        response.ClassesFiltered = getHisoryClassByAssistDate(year, monthStart, monthEnd, assists, classes);
+        response.ClassesFiltered = await getHisoryClassByAssistDate(year, monthStart, monthEnd, assists);
         response.Hours = hours;
         response.Ranges = ranges;
-        response.ColorTeachers = teachers.map(t => ({ Id: t.id, Color: t.color }));
+        response.ColorTeachers = teachers.map((t: ITeachers) => ({ Id: t.id, Color: t.color }));
         return response;
     } catch (error) {
         console.error("Error obteniendo asistencias:", error);
@@ -812,9 +813,13 @@ export const getPagedListAccountsExpirationRepository = async (search: SearchPag
             return false;
         });
 
+        let uniquePersonIds = Array.from(new Set(accounts.map((m) => m.idPerson)));
+        let personsPromise = uniquePersonIds.map(async (id) => await getStudentByIdRepository(id));
+        let persons = await Promise.all(personsPromise);
+
         if (accounts.length > 0) {
-            accounts = await Promise.all(accounts.map(async (a) => {
-                const student = await getStudentByIdRepository(a.idPerson);
+            accounts = accounts.map((a) => {
+                const student = persons.find((p) => p?.id === a.idPerson);
                 return {
                     id: a.idPerson,
                     name: `${student?.name} ${student?.lastName}`,
@@ -823,7 +828,7 @@ export const getPagedListAccountsExpirationRepository = async (search: SearchPag
                     isExpiration: a.difference >= 30,
                     nextPaymentDate: format(a.nextPaymentDate, 'full'),
                 };
-            }));
+            });
         }
 
 

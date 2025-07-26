@@ -1,17 +1,20 @@
 import { format } from "@formkit/tempo";
 import { db } from "../../../Firebase/firebase";
 import { getLimit, getPaymentsMethodsFromConfigRepository } from "../../Config/Repository/Config.repository";
-import { getFullNameContactById } from "../../Contacts/Repository/Contacts.repository";
+import { getContactByIdRepository, getFullNameContactById } from "../../Contacts/Repository/Contacts.repository";
 import { getCompanyName } from "../../Others/Helpers/getCompanyName";
 import { ResponseMessages } from "../../Others/Models/ResponseMessages";
-import { getFullNameStudentById } from "../../Students/Repository/StudentsRepository";
-import { getFullNameTeacherById } from "../../Teachers/Repository/Teachers.repository";
+import { getFullNameStudentById, getStudentByIdRepository } from "../../Students/Repository/StudentsRepository";
+import { getFullNameTeacherById, getTeacherById } from "../../Teachers/Repository/Teachers.repository";
 import { IPagedListDrawer, IPagedListMovements, PagedListDrawers, SearchPagedListDrawers } from "../Models/Drawer-paged-list.model";
 import { EditMovement, IDrawer, IExpense, IMovement } from "../Models/Drawer.models";
 import { v4 as uuidv4 } from 'uuid';
 import { IPagedListHistoryDrawer, PagedListHistoryDrawers, SearchPagedListHistoryDrawers } from "../Models/History-drawers-paged-list.model";
 import { formatDateToDate, normalizeDate } from "../../Others/Helpers/FormatDateToDate";
 import { IPagedListExpense, PagedListExpenses, SearchPagedListExpenses } from "../Models/Expenses.paged-lilst.model";
+import { IContacts } from "../../Contacts/Models/Contact.models";
+import { IStudents } from "../../Students/Models/Students.models";
+import { ITeachers } from "../../Teachers/Models/Teachers.models";
 
 
 export const getMovementByTypeRepository = async (type: string): Promise<IMovement[]> => {
@@ -313,15 +316,20 @@ export const getPagedListDrawersRepository = async (search: SearchPagedListDrawe
         // Obtener movimientos desde la subcolección 'movements'
         const movementsRef = db.collection(companyName).doc("drawers").collection("movements").where("drawerId", "==", search.DrawerId);
         const movementsSnap = await movementsRef.get();
+        const movements = movementsSnap.docs.map((doc) => doc.data() as IMovement);
+
+        let uniquePersonIds = Array.from(new Set(movements.map((m) => m.idPerson)));
+        let personsPromise = uniquePersonIds.map(async (id) => await getFullPerson(id));
+        let persons = await Promise.all(personsPromise);
 
         let drawerMovements: IPagedListMovements[] = await Promise.all(
-            movementsSnap.docs.map(async (doc) => {
-                const m = doc.data() as IMovement;
+            movements.map((m) => {
+                const person = persons.find((p) => p?.id === m.idPerson)!;
                 return {
                     id: m.id,
                     status: (m.type === 'income' || m.type === 'receipt') ? 'Ingreso' : 'Egreso',
                     description: m.description,
-                    fullName: await getFullName(m.idPerson as string),
+                    fullName: `${person?.name} ${person?.lastName}`,
                     date: m.date as string,
                     amount: m.paymentsMethods?.reduce((acc, p) => acc + p.value, 0)
                 };
@@ -383,14 +391,14 @@ export const getPagedListHistoryDrawersRepository = async (search: SearchPagedLi
         const docSnap = await docRef.get();
 
         if (docSnap.empty) {
-            response.setError("No se encontraron estudiantes");
+            response.setWarning("No se encontraron estudiantes");
             return response;
         }
 
         let drawersData: IDrawer[] = docSnap.docs.map((doc) => doc.data() as IDrawer);
 
         if (!Array.isArray(drawersData)) {
-            response.setError("No se encontraron cajas válidas");
+            response.setWarning("No se encontraron cajas válidas");
             return response;
         }
 
@@ -517,7 +525,8 @@ export const getPagedListExpensesRepository = async (search: SearchPagedListExpe
     }
 }
 
-const getFullName = async (personId: string = ""): Promise<string> => {
+const getFullName = async (personId: string | null): Promise<string> => {
+    if (!personId) return "";
     let name = "";
     try {
         name = await getFullNameStudentById(personId);
@@ -532,6 +541,23 @@ const getFullName = async (personId: string = ""): Promise<string> => {
         throw new Error("Error interno del servidor");
     }
     return name;
+}
+export const getFullPerson = async (personId: string | null): Promise<IStudents | IContacts | ITeachers | null> => {
+    if (!personId) return null;
+    let person;
+    try {
+        person = await getStudentByIdRepository(personId);
+        if (!person) {
+            person = await getTeacherById(personId);
+        }
+        if (!person) {
+            person = await getContactByIdRepository(personId);
+        }
+    } catch (error) {
+        console.error("Error obteniendo asistencias:", error);
+        throw new Error("Error interno del servidor");
+    }
+    return person;
 }
 
 export const getExpensesTypeRepository = async (): Promise<IExpense[]> => {

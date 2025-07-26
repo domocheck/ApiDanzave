@@ -3,10 +3,10 @@ import { IClasses } from "../../Classes/Models/classes.models";
 import { getClassByIdRepository } from "../../Classes/Repository/Classes.repository";
 import { getReasonByIdRepository } from "../../Config/Repository/Config.repository";
 import { ActivityToStat, IContactsActivities } from "../../Contacts/Models/Contact.models";
-import { getFullNameContactById } from "../../Contacts/Repository/Contacts.repository";
+import { getContactByIdRepository, getFullNameContactById } from "../../Contacts/Repository/Contacts.repository";
 import { IStudents, ISudentsDash } from "../../Students/Models/Students.models";
 import { ITeachers } from "../../Teachers/Models/Teachers.models";
-import { getFullNameUserIdById } from "../../Users/Repository/User.repository";
+import { getFullNameUserIdById, getUserByIdRespository } from "../../Users/Repository/User.repository";
 import { getDifferenceInDays } from "./DifferenceInDays";
 import { formatDateToDate } from "./FormatDateToDate";
 import { months, week } from "./Others";
@@ -42,6 +42,10 @@ export const getStudentsByStatusHelper = async (
         return studentDateMonth === month && studentDateYear === currentYear;
     });
 
+    let uniqueClassesId = Array.from(new Set(filteredStudents.map((a) => a.classes?.map((c) => c) || []).flat()));
+    let classesPromise = uniqueClassesId.map(async (id) => await getClassByIdRepository(id));
+    let classesMap = await Promise.all(classesPromise);
+
     return await Promise.all(filteredStudents.map(async (s) => {
         return {
             id: s.id,
@@ -50,13 +54,12 @@ export const getStudentsByStatusHelper = async (
             inactiveDate: s.inactiveDate ? s.inactiveDate.toString() : "",
             reason: s.idReason ? (await getReasonByIdRepository(s.idReason)).name : "",
             observationsInactive: s.observationsInactive || "",
-            classes: await Promise.all(s.classes?.map(async (c) => {
-                const classe = await getClassByIdRepository(c);
+            classes: classesMap?.map((c) => {
                 return {
-                    schedule: `${week[classe.days[0]]} ${classe.schedule}hs. - ${classe.lounge}`,
-                    classe: classe.dance
+                    schedule: `${week[c.days[0]]} ${c.schedule}hs. - ${c.lounge}`,
+                    classe: c.dance
                 }
-            }) || [])
+            }) || []
         };
     }));
 }
@@ -108,13 +111,20 @@ export const getActivitiesToCompleteToday = async (
         return false;
     });
 
-    const result: ActivityToStat[] = await Promise.all(
-        activitiesToComplete.map(async (act) => ({
+    let uniquePersonIds = Array.from(new Set(activitiesToComplete.map((m) => m.contactId)));
+    let uniqueUsersIds = Array.from(new Set(activitiesToComplete.map((m) => m.userId)));
+    let personsPromise = uniquePersonIds.map(async (id) => await getContactByIdRepository(id));
+    let UsersPromise = uniqueUsersIds.map(async (id) => await getUserByIdRespository(id));
+    let contacts = await Promise.all(personsPromise);
+    let users = await Promise.all(UsersPromise);
+
+    const result: ActivityToStat[] =
+        activitiesToComplete.map((act) => ({
             ...act,
-            contactName: await getFullNameContactById(act.contactId),
-            userName: await getFullNameUserIdById(act.userId),
+            contactName: contacts.find((c) => c?.id === act.contactId)?.name || "",
+            userName: users.find((u) => u?.id === act.userId)?.name || "",
         }))
-    );
+
 
     return result;
 };
@@ -133,13 +143,20 @@ export const getActivitiesToComplete = async (
         return false;
     });
 
-    const result: ActivityToStat[] = await Promise.all(
-        activitiesToComplete.map(async (act) => ({
+    let uniquePersonIds = Array.from(new Set(activitiesToComplete.map((m) => m.contactId)));
+    let uniqueUsersIds = Array.from(new Set(activitiesToComplete.map((m) => m.userId)));
+    let personsPromise = uniquePersonIds.map(async (id) => await getContactByIdRepository(id));
+    let UsersPromise = uniqueUsersIds.map(async (id) => await getUserByIdRespository(id));
+    let contacts = await Promise.all(personsPromise);
+    let users = await Promise.all(UsersPromise);
+
+    const result: ActivityToStat[] =
+        activitiesToComplete.map((act) => ({
             ...act,
-            contactName: await getFullNameContactById(act.contactId),
-            userName: await getFullNameUserIdById(act.userId),
+            contactName: contacts.find((c) => c?.id === act.contactId)?.name || "",
+            userName: users.find((u) => u?.id === act.userId)?.name || "",
         }))
-    );
+
 
     return result;
 };
@@ -159,14 +176,20 @@ export const getActivitiesComplete = async (
 
         return false;
     });
+    let uniquePersonIds = Array.from(new Set(activitiesComplete.map((m) => m.contactId)));
+    let uniqueUsersIds = Array.from(new Set(activitiesComplete.map((m) => m.userId)));
+    let personsPromise = uniquePersonIds.map(async (id) => await getContactByIdRepository(id));
+    let UsersPromise = uniqueUsersIds.map(async (id) => await getUserByIdRespository(id));
+    let contacts = await Promise.all(personsPromise);
+    let users = await Promise.all(UsersPromise);
 
-    const result: ActivityToStat[] = await Promise.all(
-        activitiesComplete.map(async (act) => ({
+    const result: ActivityToStat[] =
+        activitiesComplete.map((act) => ({
             ...act,
-            contactName: await getFullNameContactById(act.contactId),
-            userName: await getFullNameUserIdById(act.userId),
+            contactName: contacts.find((c) => c?.id === act.contactId)?.name || "",
+            userName: users.find((u) => u?.id === act.userId)?.name || "",
         }))
-    );
+
 
     return result;
 };

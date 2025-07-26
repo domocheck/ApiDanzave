@@ -1,5 +1,6 @@
 import { IAssists } from "../../Assists/Models/Assists.models";
 import { Classes, IClasses } from "../../Classes/Models/classes.models";
+import { getClassByIdRepository } from "../../Classes/Repository/Classes.repository";
 import { IStudents } from "../../Students/Models/Students.models";
 import { ITeachers } from "../../Teachers/Models/Teachers.models";
 import { IPagedListAvgAssist } from "../Models/Stats/Avg-Assists-paged-list.model";
@@ -56,7 +57,7 @@ export const checkReason = (assists: IAssists[], personId: string): string => {
     }
 }
 
-export const getHisoryClassByAssistDate = (yearStat: string, monthStart: number, monthEnd: number, assists: IAssists[], classesDb: IClasses[]): IClasses[] => {
+export const getHisoryClassByAssistDate = async (yearStat: string, monthStart: number, monthEnd: number, assists: IAssists[]): Promise<IClasses[]> => {
     const monthsValues = months;
     const result = [] as IClasses[];
     const assistsBetweenDate = assists.filter((a) => {
@@ -79,7 +80,11 @@ export const getHisoryClassByAssistDate = (yearStat: string, monthStart: number,
     });
 
     const classesIds = [...new Set(assistsBetweenDate.map((a) => a.idClass))];
-    const classes = classesDb.filter((c) => classesIds.includes(c.id));
+    const classesPromise = classesIds.map(async (id) => {
+        return await getClassByIdRepository(id);
+    })
+
+    const classes = await Promise.all(classesPromise);
 
     for (let classe of classes) {
         const newClasse: IClasses = { ...classe };

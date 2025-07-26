@@ -78,14 +78,37 @@ export const getAccountsStudentsActivesService = async (): Promise<Account> => {
         const paymentEft = paymentsConfig.find(p => p.name.includes('efectivo'));
 
         const studentsActives = await getStudentsByStatus('activo');
+
         if (studentsActives && studentsActives.length > 0) {
-            const activeIds = studentsActives.map((s) => s.id); // Extraer los IDs de los estudiantes activos
-            response.Items = (await getStudentsAccountsByPersonIds(activeIds)).Items.map((a) => {
-                return {
-                    ...a,
-                    isPaidWhitEft: a.paymentsMethods.length > 0 ? a.paymentsMethods.every(p => p.value > 0 && p.idPayment === paymentEft?.id) : true
+            const activeIds = studentsActives.map((s) => s.id);
+
+            // Dividir en grupos de 10
+            const chunkArray = (array: string[], size: number) => {
+                const result = [];
+                for (let i = 0; i < array.length; i += size) {
+                    result.push(array.slice(i, i + size));
                 }
-            }); // Filtrar cuentas por ID
+                return result;
+            };
+
+            const chunks = chunkArray(activeIds, 10);
+
+            // Ejecutar las consultas en paralelo por cada grupo de 10 IDs
+            const accountsChunks = await Promise.all(
+                chunks.map(chunk => getStudentsAccountsByPersonIds(chunk))
+            );
+
+            // Combinar los resultados de todos los chunks
+            const allAccounts = accountsChunks.flatMap(result => result.Items || []);
+
+            // Aplicar la lógica de filtrado y transformación
+            response.Items = allAccounts.map((a) => ({
+                ...a,
+                isPaidWhitEft: a.paymentsMethods.length > 0
+                    ? a.paymentsMethods.every(p => p.value > 0 && p.idPayment === paymentEft?.id)
+                    : true
+            }));
+
             response.TotalItems = response.Items.length;
         }
 

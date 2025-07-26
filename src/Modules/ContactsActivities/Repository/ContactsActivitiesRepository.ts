@@ -2,11 +2,12 @@ import { format } from "@formkit/tempo";
 import { db } from "../../../Firebase/firebase";
 import { getLimit, getReferencesFromConfigRepository, getUsersFromConfigRepository } from "../../Config/Repository/Config.repository";
 import { ActivityToTable, IContactsActivities } from "../../Contacts/Models/Contact.models";
-import { getContactByIdRepository } from "../../Contacts/Repository/Contacts.repository";
+import { getContactByIdRepository, getFullNameContactById } from "../../Contacts/Repository/Contacts.repository";
 import { getCompanyName } from "../../Others/Helpers/getCompanyName";
 import { ResponseMessages } from "../../Others/Models/ResponseMessages";
 import { checkStatusActivity } from "../Helpers/Contacts-activities.helpers";
 import { PagedListContactsActivities, SearchContactsActivities } from "../Models/Contacts-activities-paged-list.models";
+import { getContactById } from "../../Contacts/Controller/Contacts.controller";
 
 export const getContactsActivitiesRepository = async (): Promise<IContactsActivities[]> => {
     let response: IContactsActivities[] = []
@@ -102,19 +103,19 @@ export const saveActivityRepository = async (activity: IContactsActivities): Pro
         const companyName = getCompanyName();
         if (!companyName) throw new Error("Company name is not set");
 
-        const docRef = db.collection(companyName).doc("zContactsActivities").collection("activities");
+        // Referencia al nuevo documento del movimiento dentro de la subcolección
+        const activitiesRef = db
+            .collection(companyName)
+            .doc("zContactsActivities")
+            .collection("activities")
+            .doc(activity.id); // Asegúrate de que movement.id esté definido y sea único
 
-        const docSnap = await docRef.get();
+        await activitiesRef.set(activity);
 
-        if (docSnap.empty) {
-            throw new Error("No se encontro el nombre");
-        }
-
-        await docRef.add(activity);
-        response.setSuccess("Actividad creada correctamente");
+        response.setSuccess("contacto guardado con éxito");
     } catch (error: any) {
+        console.error("Error guardando contacto:", error);
         response.setError(error.message);
-        return response
     }
 
     return response;
@@ -133,13 +134,10 @@ export const fulfillActivityRepository = async (activityId: string): Promise<Res
         if (!docSnap.exists) {
             throw new Error("No se encontro el nombre");
         }
-
         await docRef.update({
             fulfillDate: format(new Date(), 'full')
         });
-
         response.setSuccess("Actividad cumplida correctamente");
-
     } catch (error: any) {
         response.setError(error.message);
         return response
@@ -158,21 +156,28 @@ export const getPagedListContactsActivitiesRepository = async (search: SearchCon
             throw new Error("Company name is not set");
         }
         const docRef = db.collection(companyName).doc("zContactsActivities").collection("activities")
-            .where("fulfillDate", "==", null);
+            .where("fulfillDate", "==", null)
+            .orderBy("id");
         const docSnap = await docRef.get();
 
         if (docSnap.empty) {
-            response.setError("No se encontraron actividades");
+            response.setWarning("No se encontraron actividades");
             return response;
         }
 
         const references = await getReferencesFromConfigRepository()
         const users = await getUsersFromConfigRepository()
 
+        const activities = docSnap.docs.map((doc) => doc.data() as IContactsActivities)
+
+        let uniquePersonIds = Array.from(new Set(activities.map((m) => m.contactId)));
+        let contactsPromise = uniquePersonIds.map(async (id) => await getContactByIdRepository(id));
+        let contacts = await Promise.all(contactsPromise);
+
         // Crear un array de promesas
-        const activitiesPromises = docSnap.docs.map((doc) => doc.data() as IContactsActivities)
-            .map(async (ca: IContactsActivities) => {
-                const contact = await getContactByIdRepository(ca.contactId)
+        let activitiesData = activities
+            .map((ca: IContactsActivities) => {
+                const contact = contacts.find((c) => c.id === ca.contactId)!;
                 const status = checkStatusActivity(ca)
                 return {
                     activityId: ca.id,
@@ -189,8 +194,6 @@ export const getPagedListContactsActivitiesRepository = async (search: SearchCon
                 }
             });
 
-        // Esperar a que todas las promesas se resuelvan
-        let activitiesData: ActivityToTable[] = await Promise.all(activitiesPromises);
 
         if (!Array.isArray(activitiesData) || activitiesData.length === 0) {
             response.setError("No se encontraron actividades válidas");

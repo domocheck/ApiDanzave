@@ -14,10 +14,31 @@ import { getDiscount } from "../Helpers/Accounts.helpers";
 
 export const getAccountsStudentsActivesRepository = async (): Promise<IAccount[]> => {
     const studentsActives = await getStudentsByStatus('activo');
+
     if (studentsActives && studentsActives.length > 0) {
-        const activeIds = studentsActives.map((s) => s.id); // Extraer los IDs de los estudiantes activos
-        return (await getStudentsAccountsByPersonIds(activeIds)).Items; // Filtrar cuentas por ID
+        const activeIds = studentsActives.map((s) => s.id);
+
+        // Función para dividir en bloques de 10
+        const chunkArray = (array: string[], size: number) => {
+            const result = [];
+            for (let i = 0; i < array.length; i += size) {
+                result.push(array.slice(i, i + size));
+            }
+            return result;
+        };
+
+        const chunks = chunkArray(activeIds, 10);
+
+        // Ejecutar todas las consultas en paralelo
+        const accountsChunks = await Promise.all(
+            chunks.map(chunk => getStudentsAccountsByPersonIds(chunk))
+        );
+        // Unir los resultados de cada chunk
+        const allAccounts = accountsChunks.flatMap(result => result.Items || []);
+
+        return allAccounts;
     }
+
 
     return [];
 
@@ -34,7 +55,7 @@ export const getStudentsAccounts = async (): Promise<Account> => {
         const docSnap = await docRef.get();
 
         if (docSnap.empty) {
-            response.setError("No se encontraron cuentas");
+            response.setWarning("No se encontraron cuentas");
             return response;
         }
 
@@ -75,7 +96,7 @@ export const getTuitionStudentsAccounts = async (
         const docSnap = await query.get();
 
         if (docSnap.empty) {
-            response.setError("No se encontraron cuentas");
+            response.setWarning("No se encontraron cuentas");
             return response;
         }
 
@@ -103,14 +124,13 @@ export const getStudentsAccountsByPersonIds = async (personIds: string[]): Promi
     try {
         const companyName = getCompanyName();
         if (!companyName) response.setError("Company name is not set");
-
         // Referencia al documento "accounts"
         const docRef = db.collection(companyName).doc("studentsAccounts").collection("accounts")
             .where("idPerson", "in", personIds);
         const docSnap = await docRef.get();
 
         if (docSnap.empty) {
-            response.setError("No se encontraron cuentas");
+            response.setWarning("No se encontraron cuentas");
             return response;
         }
 
@@ -139,7 +159,7 @@ export const getPendingStudentsAccounts = async (): Promise<Account> => {
         const docSnap = await docRef.get();
 
         if (docSnap.empty) {
-            response.setError("No se encontraron cuentas");
+            response.setWarning("No se encontraron cuentas");
             return response;
         }
 
@@ -168,7 +188,7 @@ export const getPendingTeachersAccounts = async (): Promise<Account> => {
         const docSnap = await docRef.get();
 
         if (docSnap.empty) {
-            response.setError("No se encontraron cuentas");
+            response.setWarning("No se encontraron cuentas");
             return response;
         }
 
@@ -199,7 +219,7 @@ export const getStudentsAccountsByStatus = async (status: string): Promise<Accou
         const docSnap = await docRef.get();
 
         if (docSnap.empty) {
-            response.setError("No se encontraron cuentas");
+            response.setWarning("No se encontraron cuentas");
             return response;
         }
 
@@ -279,11 +299,33 @@ export const getAccountsByTeacherIdRepository = async (teacherId: string): Promi
 }
 
 export const getAccountsTeachersActives = async () => {
-    const teachersActives = await getTeachersActives();
+    const teachersActives = await getTeachersByStatus('activo');
+
     if (teachersActives && teachersActives.length > 0) {
-        const activeIds = teachersActives.map((s) => s.id); // Extraer los IDs de los estudiantes activos
-        return (await getTeachersAccountsByPersonIds(activeIds)).Items; // Filtrar cuentas por ID
+        const activeIds = teachersActives.map((s) => s.id);
+
+        // Función para dividir en bloques de 10
+        const chunkArray = (array: string[], size: number) => {
+            const result = [];
+            for (let i = 0; i < array.length; i += size) {
+                result.push(array.slice(i, i + size));
+            }
+            return result;
+        };
+
+        const chunks = chunkArray(activeIds, 10);
+
+        // Ejecutar todas las consultas en paralelo
+        const accountsChunks = await Promise.all(
+            chunks.map(chunk => getTeachersAccountsByPersonIds(chunk))
+        );
+
+        // Unir los resultados de cada chunk
+        const allAccounts = accountsChunks.flatMap(result => result.Items || []);
+
+        return allAccounts;
     }
+
 
     return [];
 
@@ -301,7 +343,7 @@ export const getTeachersAccountsByPersonIds = async (personIds: string[]): Promi
         const docSnap = await docRef.get();
 
         if (docSnap.empty) {
-            response.setError("No se encontraron cuentas");
+            response.setWarning("No se encontraron cuentas");
             return response;
         }
 
@@ -325,16 +367,14 @@ export const getTeachersByStatus = async (status: string): Promise<ITeachers[]> 
         const companyName = getCompanyName();
         if (!companyName) throw new Error("Company name is not set");
 
-        const docRef = db.collection(companyName).doc("teachers");
+        const docRef = db.collection(companyName).doc("teachers").collection("teachers").where("status", "==", status);
         const docSnap = await docRef.get();
 
-        if (!docSnap.exists) {
-            throw new Error("No se encontro el nombre");
+        if (docSnap.empty) {
+            return teachersByStatus;
         }
 
-        const teachers = docSnap.data()?.teachers ?? [];
-
-        teachersByStatus = teachers.filter((s: ITeachers) => s.status === status);
+        teachersByStatus = docSnap.docs.map(doc => doc.data() as ITeachers);
 
         return teachersByStatus.sort((a, b) => a.name.localeCompare(b.name))
     } catch (error) {
@@ -355,7 +395,7 @@ export const getTeachersAccounts = async (): Promise<Account> => {
         const docSnap = await docRef.get();
 
         if (docSnap.empty) {
-            response.setError("No se encontraron cuentas");
+            response.setWarning("No se encontraron cuentas");
             return response;
         }
 
@@ -396,7 +436,7 @@ export const updateAccountTeacherRepository = async (
         const docSnap = await accountRef.get();
 
         if (!docSnap.exists) {
-            response.setError("Cuenta no encontrada");
+            response.setWarning("Cuenta no encontrada");
             return response;
         }
 

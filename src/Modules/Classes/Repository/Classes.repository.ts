@@ -11,6 +11,7 @@ import { scheduler } from "timers/promises";
 import { ITeachers } from "../../Teachers/Models/Teachers.models";
 import { IActivity } from "../../Activities/Models/Activities.models";
 import { PagedListJuvetActivities, SearchPagedListJuvetActivities } from "../Models/juvet-activites-paged-list.model";
+import { IContacts } from "../../Contacts/Models/Contact.models";
 
 
 export const getPagedListClassesRepository = async (search: SearchPagedListClasses): Promise<PagedListClasses> => {
@@ -21,28 +22,26 @@ export const getPagedListClassesRepository = async (search: SearchPagedListClass
         if (!companyName) {
             throw new Error("Company name is not set");
         }
-        // Referencia al documento "classes" dentro de la colección de la compañía
-        const docRef = db.collection(companyName).doc("classes");
+        let docRef;
+        if (search.Status && search.Status !== 'all') {
+            docRef = db.collection(companyName).doc("classes").collection("classes").where("status", "==", search.Status);
+        } else {
+            docRef = db.collection(companyName).doc("classes").collection("classes")
+        }
 
-        // Obtener el documento
         const docSnap = await docRef.get();
 
-        // Verificar si el documento existe
-        if (!docSnap.exists) {
-            response.setError("No se encontraron clases");
+        if (docSnap.empty) {
+            response.setWarning("No se encontraron actividades");
             return response;
         }
 
-        // Acceder al campo 'classes' dentro del documento
-        let classesData = docSnap.data()?.classes;
+        let classesData = docSnap.docs.map((doc) => doc.data() as IClasses);
 
         // Verificar si 'classes' existe y es un arreglo
         if (!Array.isArray(classesData)) {
             response.setError("No se encontraron clases válidas");
             return response;
-        }
-        if (search.Status && search.Status !== 'all') {
-            classesData = classesData.filter((item: IClasses) => item.status === search.Status);
         }
 
         if (search.Name) {
@@ -94,7 +93,7 @@ export const getPagedListJuvetActivitiesRepository = async (search: SearchPagedL
 
         // Verificar si el documento existe
         if (!docSnap.exists) {
-            response.setError("No se encontraron actividades");
+            response.setWarning("No se encontraron actividades");
             return response;
         }
 
@@ -150,28 +149,26 @@ export const getClassesRepository = async (search: SearchPagedListClasses): Prom
         if (!companyName) {
             throw new Error("Company name is not set");
         }
-        // Referencia al documento "classes" dentro de la colección de la compañía
-        const docRef = db.collection(companyName).doc("classes");
+        let docRef;
+        if (search.Status && search.Status !== 'all') {
+            docRef = db.collection(companyName).doc("classes").collection("classes").where("status", "==", search.Status);
+        } else {
+            docRef = db.collection(companyName).doc("classes").collection("classes")
+        }
 
-        // Obtener el documento
         const docSnap = await docRef.get();
 
-        // Verificar si el documento existe
-        if (!docSnap.exists) {
-            response.setError("No se encontraron clases");
+        if (docSnap.empty) {
+            response.setWarning("No se encontraron actividades");
             return response;
         }
 
-        // Acceder al campo 'classes' dentro del documento
-        let classesData = docSnap.data()?.classes;
+        let classesData = docSnap.docs.map((doc) => doc.data() as IClasses);
 
         // Verificar si 'classes' existe y es un arreglo
         if (!Array.isArray(classesData)) {
             response.setError("No se encontraron clases válidas");
             return response;
-        }
-        if (search.Status) {
-            classesData = classesData.filter((item: IClasses) => item.status === search.Status);
         }
 
         if (search.Name) {
@@ -193,33 +190,6 @@ export const getClassesRepository = async (search: SearchPagedListClasses): Prom
         console.error("Error obteniendo clases:", error);
         response.setError("Error interno del servidor");
         return response;
-    }
-};
-
-export const getClasses = async (): Promise<IClasses[]> => {
-    try {
-        const companyName = getCompanyName();
-
-        if (!companyName) {
-            throw new Error("Company name is not set");
-        }
-        // Referencia al documento "classes" dentro de la colección de la compañía
-        const docRef = db.collection(companyName).doc("classes");
-
-        // Obtener el documento
-        const docSnap = await docRef.get();
-
-        // Verificar si el documento existe
-        if (!docSnap.exists) {
-            throw new Error("No se encontraron clases");
-        }
-
-        // Acceder al campo 'classes' dentro del documento
-        return docSnap.data()?.classes ?? [];
-
-    } catch (error) {
-        console.error("Error obteniendo clases:", error);
-        throw new Error("Error interno del servidor");
     }
 };
 
@@ -259,26 +229,25 @@ export const getClassesByStatusRepository = async (status: string): Promise<Clas
             throw new Error("Company name is not set");
         }
         // Referencia al documento "classes" dentro de la colección de la compañía
-        const docRef = db.collection(companyName).doc("classes");
+        const docRef = db.collection(companyName).doc("classes").collection("classes").where("status", "==", status);
 
         // Obtener el documento
         const docSnap = await docRef.get();
 
         // Verificar si el documento existe
-        if (!docSnap.exists) {
-            response.setError("No se encontraron clases");
+        if (docSnap.empty) {
+            response.setWarning("No se encontraron clases");
             return response;
         }
 
         // Acceder al campo 'classes' dentro del documento
-        let classesData = docSnap.data()?.classes;
-
+        let classesData = docSnap.docs.map((doc) => doc.data() as IClasses);
         // Verificar si 'classes' existe y es un arreglo
         if (!Array.isArray(classesData)) {
             response.setError("No se encontraron clases válidas");
             return response;
         }
-        response.Items = classesData.filter((item: IClasses) => item.status === status);
+        response.Items = classesData;
         response.TotalItems = classesData.length;
         return response;
     } catch (error) {
@@ -296,20 +265,19 @@ export const changeClassStatusRepository = async (classId: string, newStatus: st
         if (!companyName) {
             throw new Error("Company name is not set");
         }
-        // Referencia al documento "classes" dentro de la colección de la compañía
-        const docRef = db.collection(companyName).doc("classes");
+        const classDocRef = db
+            .collection(companyName)
+            .doc("classes")
+            .collection("classes")
+            .doc(classId);
 
-        // Obtener el documento
-        const docSnap = await docRef.get();
+        const docSnap = await classDocRef.get();
 
         // Verificar si el documento existe
         if (!docSnap.exists) {
             throw new Error("No se encontraron clases");
         }
-
-        // Acceder al campo 'classes' dentro del documento
-        let classesData: IClasses[] = docSnap.data()?.classes;
-        const currentClass = classesData.find((c: IClasses) => c.id === classId);
+        const currentClass = docSnap.data() as IClasses;
         if (currentClass) {
             currentClass.status = newStatus;
             if (newStatus === 'inactivo') {
@@ -318,7 +286,11 @@ export const changeClassStatusRepository = async (classId: string, newStatus: st
             }
         }
 
-        await docRef.update({ classes: classesData })
+        await classDocRef.update({
+            status: currentClass.status,
+            students: currentClass.students,
+            idTeacher: currentClass.idTeacher
+        })
         response.setSuccess('Clase modificada con exito');
 
         return response;
@@ -380,7 +352,7 @@ export const getClassByIdRepository = async (id: string): Promise<IClasses> => {
             throw new Error("Company name is not set");
         }
         // Referencia al documento "classes" dentro de la colección de la compañía
-        const docRef = db.collection(companyName).doc("classes");
+        const docRef = db.collection(companyName).doc("classes").collection("classes").doc(id);
 
         // Obtener el documento
         const docSnap = await docRef.get();
@@ -391,13 +363,8 @@ export const getClassByIdRepository = async (id: string): Promise<IClasses> => {
         }
 
         // Acceder al campo 'classes' dentro del documento
-        let classesData: IClasses[] = docSnap.data()?.classes;
-        // Verificar si 'classes' existe y es un arreglo
-        if (!Array.isArray(classesData)) {
-            throw new Error("No se encontraron clases válidas");
-        }
+        let classFound: IClasses = docSnap.data() as IClasses;
 
-        const classFound = classesData.find((item: IClasses) => item.id === id);
         if (!classFound) return {} as IClasses
         return classFound
     } catch (error: any) {
@@ -406,6 +373,7 @@ export const getClassByIdRepository = async (id: string): Promise<IClasses> => {
     }
 
 }
+
 
 export const getJuvetActivityByIdRepository = async (id: string): Promise<IActivity> => {
     try {
@@ -451,7 +419,7 @@ export const removeTeacherToClassRepository = async (classId: string, teacherId:
             throw new Error("Company name is not set");
         }
         // Referencia al documento "classes" dentro de la colección de la compañía
-        const docRef = db.collection(companyName).doc("classes");
+        const docRef = db.collection(companyName).doc("classes").collection("classes").doc(classId);
 
         // Obtener el documento
         const docSnap = await docRef.get();
@@ -462,13 +430,12 @@ export const removeTeacherToClassRepository = async (classId: string, teacherId:
         }
 
         // Acceder al campo 'classes' dentro del documento
-        let classesData: IClasses[] = docSnap.data()?.classes;
-        const currentClass = classesData.find((c: IClasses) => c.id === classId);
+        const currentClass = docSnap.data() as IClasses;
         if (currentClass) {
             currentClass.idTeacher = "";
         }
 
-        await docRef.update({ classes: classesData })
+        await docRef.update({ idTeacher: currentClass.idTeacher })
         response.setSuccess('Maestra eliminada de la clase con exito');
 
         return response;
@@ -489,7 +456,7 @@ export const removeStudentToClassRepository = async (classId: string, studentId:
             throw new Error("Company name is not set");
         }
         // Referencia al documento "classes" dentro de la colección de la compañía
-        const docRef = db.collection(companyName).doc("classes");
+        const docRef = db.collection(companyName).doc("classes").collection("classes").doc(classId);
 
         // Obtener el documento
         const docSnap = await docRef.get();
@@ -500,13 +467,12 @@ export const removeStudentToClassRepository = async (classId: string, studentId:
         }
 
         // Acceder al campo 'classes' dentro del documento
-        let classesData: IClasses[] = docSnap.data()?.classes;
-        const currentClass = classesData.find((c: IClasses) => c.id === classId);
-        if (currentClass) {
-            currentClass.students.splice(currentClass?.students.indexOf(studentId), 1);
+        const currentclass: IClasses = docSnap.data() as IClasses;
+        if (currentclass) {
+            currentclass.students.splice(currentclass?.students.indexOf(studentId), 1);
         }
 
-        await docRef.update({ classes: classesData })
+        await docRef.update({ students: currentclass.students })
         response.setSuccess('Estudiante eliminado de la clase con exito');
 
         return response;
@@ -527,7 +493,7 @@ export const removeClassToStudentRepository = async (classId: string, studentId:
             throw new Error("Company name is not set");
         }
         // Referencia al documento "classes" dentro de la colección de la compañía
-        const docRef = db.collection(companyName).doc(type);
+        const docRef = db.collection(companyName).doc(type).collection(type).doc(studentId);
 
         // Obtener el documento
         const docSnap = await docRef.get();
@@ -538,16 +504,15 @@ export const removeClassToStudentRepository = async (classId: string, studentId:
         }
 
         // Acceder al campo 'classes' dentro del documento
-        let studentsData: IStudents[] = docSnap.data()?.[type];
-        const idCurrentStudent = studentsData.findIndex((s: IStudents) => s.id === studentId);
-        if (idCurrentStudent !== -1 && studentsData) {
-            studentsData[idCurrentStudent].classes!.splice(
-                studentsData[idCurrentStudent].classes!.indexOf(classId),
+        const currentStudent = docSnap.data() as IStudents | IContacts;
+        if (currentStudent.id) {
+            currentStudent.classes!.splice(
+                currentStudent.classes!.indexOf(classId),
                 1,
             );
         }
 
-        await docRef.update(type === 'students' ? { students: studentsData } : { contacts: studentsData });
+        await docRef.update({ classes: currentStudent.classes });
 
         response.setSuccess('Estudiante eliminado de la clase con éxito');
         return response;
@@ -569,7 +534,7 @@ export const removeClassToTeacherRepository = async (classId: string, teacherId:
             throw new Error("Company name is not set");
         }
         // Referencia al documento "classes" dentro de la colección de la compañía
-        const docRef = db.collection(companyName).doc('teachers');
+        const docRef = db.collection(companyName).doc('teachers').collection('teachers').doc(teacherId);
 
         // Obtener el documento
         const docSnap = await docRef.get();
@@ -580,16 +545,15 @@ export const removeClassToTeacherRepository = async (classId: string, teacherId:
         }
 
         // Acceder al campo 'classes' dentro del documento
-        let teachersData: ITeachers[] = docSnap.data()?.teachers;
-        const idCurrentTeacher = teachersData.findIndex((s: ITeachers) => s.id === teacherId);
-        if (idCurrentTeacher !== -1 && teachersData) {
-            teachersData[idCurrentTeacher].classes!.splice(
-                teachersData[idCurrentTeacher].classes!.indexOf(classId),
+        const currentTeacher = docSnap.data() as ITeachers;
+        if (currentTeacher.id) {
+            currentTeacher.classes!.splice(
+                currentTeacher.classes!.indexOf(classId),
                 1,
             );
         }
 
-        await docRef.update({ teachers: teachersData });
+        await docRef.update({ classes: currentTeacher.classes });
 
         response.setSuccess('Estudiante eliminado de la clase con éxito');
         return response;
@@ -611,7 +575,7 @@ export const addStudentToClassRepository = async (classId: string, studentId: st
             throw new Error("Company name is not set");
         }
         // Referencia al documento "classes" dentro de la colección de la compañía
-        const docRef = db.collection(companyName).doc("classes");
+        const docRef = db.collection(companyName).doc("classes").collection("classes").doc(classId);
 
         // Obtener el documento
         const docSnap = await docRef.get();
@@ -622,13 +586,12 @@ export const addStudentToClassRepository = async (classId: string, studentId: st
         }
 
         // Acceder al campo 'classes' dentro del documento
-        let classesData: IClasses[] = docSnap.data()?.classes;
-        const currentClass = classesData.find((c: IClasses) => c.id === classId);
+        const currentClass = docSnap.data() as IClasses;
         if (currentClass) {
             currentClass.students.unshift(studentId);
         }
 
-        await docRef.update({ classes: classesData })
+        await docRef.update({ students: currentClass.students })
         response.setSuccess('Estudiante eliminado de la clase con exito');
 
         return response;
@@ -649,7 +612,7 @@ export const addTeacherToClassRepository = async (classId: string, teacherId: st
             throw new Error("Company name is not set");
         }
         // Referencia al documento "classes" dentro de la colección de la compañía
-        const docRef = db.collection(companyName).doc("classes");
+        const docRef = db.collection(companyName).doc("classes").collection("classes").doc(classId);
 
         // Obtener el documento
         const docSnap = await docRef.get();
@@ -660,13 +623,12 @@ export const addTeacherToClassRepository = async (classId: string, teacherId: st
         }
 
         // Acceder al campo 'classes' dentro del documento
-        let classesData: IClasses[] = docSnap.data()?.classes;
-        const currentClass = classesData.find((c: IClasses) => c.id === classId);
+        const currentClass = docSnap.data() as IClasses;
         if (currentClass) {
             currentClass.idTeacher = teacherId;
         }
 
-        await docRef.update({ classes: classesData })
+        await docRef.update({ idTeacher: currentClass.idTeacher })
         response.setSuccess('Estudiante eliminado de la clase con exito');
 
         return response;
@@ -687,31 +649,29 @@ export const getClassesGropuedRepository = async (): Promise<ClassesActives[]> =
         if (!companyName) {
             throw new Error("Company name is not set");
         }
-        const docRef = db.collection(companyName).doc("classes");
+        const docRef = db.collection(companyName).doc("classes").collection("classes").where('status', '==', 'activo');
         const docSnap = await docRef.get();
 
-        if (!docSnap.exists) {
+        if (docSnap.empty) {
             return response;
         }
-        let classesData: IClasses[] = docSnap.data()?.classes;
+        let classesData: IClasses[] = docSnap.docs.map((doc) => doc.data() as IClasses);
 
         classesData.forEach((classe) => {
-            if (classe.status === 'activo') {
-                let daysOfWeek = classe.days.map((day) => {
-                    return week[day];
-                });
+            let daysOfWeek = classe.days.map((day) => {
+                return week[day];
+            });
 
-                response.push({
-                    id: classe.id,
-                    name: `${classe.dance} - ${classe.lounge}`,
-                    schedule: classe.schedule,
-                    duration: classe.duration,
-                    days: daysOfWeek,
-                    students: classe.students,
-                    lounge: classe.lounge,
-                    numberDay: classe.days[0],
-                });
-            }
+            response.push({
+                id: classe.id,
+                name: `${classe.dance} - ${classe.lounge}`,
+                schedule: classe.schedule,
+                duration: classe.duration,
+                days: daysOfWeek,
+                students: classe.students,
+                lounge: classe.lounge,
+                numberDay: classe.days[0],
+            });
         });
         response
             .sort((a, b) => a.name.localeCompare(b.name))
@@ -736,28 +696,19 @@ export const saveClasseRepository = async (classe: IClasses): Promise<ResponseMe
         const companyName = getCompanyName();
         if (!companyName) throw new Error("Company name is not set");
 
-        const docRef = db.collection(companyName).doc("classes");
-        const docSnap = await docRef.get();
+        // Referencia al nuevo documento del movimiento dentro de la subcolección
+        const classRef = db
+            .collection(companyName)
+            .doc("classes")
+            .collection("classes")
+            .doc(classe.id); // Asegúrate de que movement.id esté definido y sea único
 
-        if (!docSnap.exists) {
-            throw new Error("No se encontro el nombre");
-        }
+        await classRef.set(classe);
 
-        const classes: IClasses[] = docSnap.data()?.classes ?? [];
-        const index = classes.findIndex((s: IClasses) => s.id === classe.id);
-
-        if (index !== -1) {
-            classes.splice(index, 1, classe);
-        } else {
-            classes.unshift(classe);
-        }
-
-        await docRef.update({ classes });
-        response.setSuccess("La clase se ha guardado correctamente");
-
+        response.setSuccess("clase guardado con éxito");
     } catch (error: any) {
+        console.error("Error guardando clase:", error);
         response.setError(error.message);
-        return response;
     }
     return response
 }
@@ -803,7 +754,7 @@ export const checkIsPersonOnClasseRepository = async (classeId: string, personId
             throw new Error("Company name is not set");
         }
         // Referencia al documento "classes" dentro de la colección de la compañía
-        const docRef = db.collection(companyName).doc("classes");
+        const docRef = db.collection(companyName).doc("classes").collection("classes").doc(classeId);
 
         // Obtener el documento
         const docSnap = await docRef.get();
@@ -814,10 +765,7 @@ export const checkIsPersonOnClasseRepository = async (classeId: string, personId
         }
 
         // Acceder al campo 'classes' dentro del documento
-        let classesData: IClasses[] = docSnap.data()?.classes;
-
-
-        const classFound = classesData.find((item: IClasses) => item.id === classeId);
+        const classFound = docSnap.data() as IClasses;
         if (!classFound) return response
         return classFound.students.includes(personId);
     } catch (error: any) {
