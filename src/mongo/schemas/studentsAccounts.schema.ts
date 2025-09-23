@@ -1,4 +1,5 @@
-import mongoose, { mongo } from "mongoose";
+import mongoose, { Connection, Model, mongo } from "mongoose";
+import { IAccount } from "../../Modules/Accounts/Models/Accounts.models";
 
 const studentsAccountsSchema = new mongoose.Schema({
     amount: Number,
@@ -21,8 +22,18 @@ const studentsAccountsSchema = new mongoose.Schema({
     year: Number
 });
 
-const studentsAccountsModelMongo = mongoose.model(
-    "StudentsAccounts",
-    studentsAccountsSchema
-);
-export default studentsAccountsModelMongo;
+const connections: Record<string, Connection> = {};
+
+export function getStudentsAccountsModel(companyName: string): Model<IAccount> {
+    if (!connections[companyName]) {
+        connections[companyName] = mongoose.createConnection(
+            `${process.env.DB_URL!}${companyName}${process.env.OPTIONS_DB_URL}`
+        );
+    }
+
+    return connections[companyName].model<IAccount>(
+        "StudentsAccounts",
+        studentsAccountsSchema,
+        "StudentsAccounts"
+    );
+}

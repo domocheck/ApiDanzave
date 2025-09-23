@@ -1,4 +1,5 @@
-import mongoose from "mongoose";
+import mongoose, { Connection, Model } from "mongoose";
+import { IProduct } from "../../Modules/Boutique/Models/Paged-list-products.models";
 
 const productsSchema = new mongoose.Schema({
     categoryId: String,
@@ -19,5 +20,18 @@ const productsSchema = new mongoose.Schema({
     }]
 });
 
-const productsModelMongo = mongoose.model("Products", productsSchema);
-export default productsModelMongo;
+const connections: Record<string, Connection> = {};
+
+export function getProductsModel(companyName: string): Model<IProduct> {
+    if (!connections[companyName]) {
+        connections[companyName] = mongoose.createConnection(
+            `${process.env.DB_URL!}${companyName}${process.env.OPTIONS_DB_URL}`
+        );
+    }
+
+    return connections[companyName].model<IProduct>(
+        "Products",
+        productsSchema,
+        "Products"
+    );
+}

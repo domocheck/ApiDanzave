@@ -1,4 +1,5 @@
-import mongoose from "mongoose";
+import mongoose, { Connection, Model } from "mongoose";
+import { IActivity } from "../../Modules/Activities/Models/Activities.models";
 
 const activitiesSchema = new mongoose.Schema({
     activity: String,
@@ -17,5 +18,18 @@ const activitiesSchema = new mongoose.Schema({
     students: [String],
 })
 
-const activitiyModelMongo = mongoose.model('Activities', activitiesSchema);
-export default activitiyModelMongo
+const connections: Record<string, Connection> = {};
+
+export function getActivitiesModel(companyName: string): Model<IActivity> {
+    if (!connections[companyName]) {
+        connections[companyName] = mongoose.createConnection(
+            `${process.env.DB_URL!}${companyName}${process.env.OPTIONS_DB_URL}`
+        );
+    }
+
+    return connections[companyName].model<IActivity>(
+        "Activities",
+        activitiesSchema,
+        "Activities"
+    );
+}

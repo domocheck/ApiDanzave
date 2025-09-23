@@ -44,7 +44,7 @@ const connections: Record<string, Connection> = {};
 export function getStudentModel(companyName: string): Model<IStudents> {
     if (!connections[companyName]) {
         connections[companyName] = mongoose.createConnection(
-            `${process.env.DB_URL!}${companyName}`
+            `${process.env.DB_URL!}${companyName}${process.env.OPTIONS_DB_URL}`
         );
     }
 

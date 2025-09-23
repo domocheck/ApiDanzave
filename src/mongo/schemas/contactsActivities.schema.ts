@@ -1,4 +1,5 @@
-import mongoose from "mongoose";
+import mongoose, { Connection, Model } from "mongoose";
+import { IContactsActivities } from "../../Modules/Contacts/Models/Contact.models";
 
 const contactsActivitiesSchema = new mongoose.Schema({
     contactId: String,
@@ -13,8 +14,18 @@ const contactsActivitiesSchema = new mongoose.Schema({
     userId: String
 });
 
-const contactsActivitiesModelMongo = mongoose.model(
-    "ContactsActivities",
-    contactsActivitiesSchema
-);
-export default contactsActivitiesModelMongo;
+const connections: Record<string, Connection> = {};
+
+export function getContactsActivitiesModel(companyName: string): Model<IContactsActivities> {
+    if (!connections[companyName]) {
+        connections[companyName] = mongoose.createConnection(
+            `${process.env.DB_URL!}${companyName}${process.env.OPTIONS_DB_URL}`
+        );
+    }
+
+    return connections[companyName].model<IContactsActivities>(
+        "ContactsActivities",
+        contactsActivitiesSchema,
+        "ContactsActivities"
+    );
+}

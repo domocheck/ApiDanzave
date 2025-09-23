@@ -1,4 +1,4 @@
-import mongoose from "mongoose";
+import mongoose, { Connection, Model } from "mongoose";
 
 const salesSchema = new mongoose.Schema({
     ctaCte: Boolean,
@@ -15,5 +15,18 @@ const salesSchema = new mongoose.Schema({
     }]
 });
 
-const salesModelMongo = mongoose.model("Sales", salesSchema);
-export default salesModelMongo;
+const connections: Record<string, Connection> = {};
+
+export function getSalesModel(companyName: string): Model<any> {
+    if (!connections[companyName]) {
+        connections[companyName] = mongoose.createConnection(
+            `${process.env.DB_URL!}${companyName}${process.env.OPTIONS_DB_URL}`
+        );
+    }
+
+    return connections[companyName].model<any>(
+        "Sales",
+        salesSchema,
+        "Sales"
+    );
+}

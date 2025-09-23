@@ -1,4 +1,5 @@
-import mongoose from "mongoose";
+import mongoose, { Connection, Model } from "mongoose";
+import { IMovement } from "../../Modules/Drawers/Models/Drawer.models";
 
 const drawerMovementsSchema = new mongoose.Schema({
     amount: Number,
@@ -16,8 +17,18 @@ const drawerMovementsSchema = new mongoose.Schema({
     type: String
 });
 
-const drawerMovementsModelMongo = mongoose.model(
-    "DrawerMovements",
-    drawerMovementsSchema
-);
-export default drawerMovementsModelMongo;
+const connections: Record<string, Connection> = {};
+
+export function getDrawerMovementsModel(companyName: string): Model<IMovement> {
+    if (!connections[companyName]) {
+        connections[companyName] = mongoose.createConnection(
+            `${process.env.DB_URL!}${companyName}${process.env.OPTIONS_DB_URL}`
+        );
+    }
+
+    return connections[companyName].model<IMovement>(
+        "DrawerMovements",
+        drawerMovementsSchema,
+        "DrawerMovements"
+    );
+}

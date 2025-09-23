@@ -1,4 +1,5 @@
-import mongoose from "mongoose";
+import mongoose, { Connection, Model } from "mongoose";
+import { IClasses } from "../../Modules/Classes/Models/classes.models";
 
 const classesSchema = new mongoose.Schema({
     color: String,
@@ -17,5 +18,18 @@ const classesSchema = new mongoose.Schema({
     students: [String]
 });
 
-const classesModelMongo = mongoose.model('Classes', classesSchema);
-export default classesModelMongo
+const connections: Record<string, Connection> = {};
+
+export function getClassesModel(companyName: string): Model<IClasses> {
+    if (!connections[companyName]) {
+        connections[companyName] = mongoose.createConnection(
+            `${process.env.DB_URL!}${companyName}${process.env.OPTIONS_DB_URL}`
+        );
+    }
+
+    return connections[companyName].model<IClasses>(
+        "Classes",
+        classesSchema,
+        "Classes"
+    );
+}

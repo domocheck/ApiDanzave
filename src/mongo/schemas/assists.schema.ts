@@ -1,4 +1,5 @@
-import mongoose from "mongoose";
+import mongoose, { Connection, Model } from "mongoose";
+import { IAssists } from "../../Modules/Assists/Models/Assists.models";
 
 const assistsSchema = new mongoose.Schema({
     absent: [String],
@@ -12,5 +13,18 @@ const assistsSchema = new mongoose.Schema({
     proofClass: String
 })
 
-const assistModelMongo = mongoose.model('Assists', assistsSchema);
-export default assistModelMongo
+const connections: Record<string, Connection> = {};
+
+export function getAssistsModel(companyName: string): Model<IAssists> {
+    if (!connections[companyName]) {
+        connections[companyName] = mongoose.createConnection(
+            `${process.env.DB_URL!}${companyName}${process.env.OPTIONS_DB_URL}`
+        );
+    }
+
+    return connections[companyName].model<IAssists>(
+        "Assists",
+        assistsSchema,
+        "Assists"
+    );
+}

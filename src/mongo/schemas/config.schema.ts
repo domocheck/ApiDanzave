@@ -1,4 +1,5 @@
-import mongoose from "mongoose";
+import mongoose, { Connection, Model } from "mongoose";
+import { IConfig } from "../../Modules/Config/Models/Config.models";
 
 const configSchema = new mongoose.Schema({
     categoriesProducts: [{
@@ -64,5 +65,18 @@ const configSchema = new mongoose.Schema({
     }],
 });
 
-const configModelMongo = mongoose.model("onfig", configSchema);
-export default configModelMongo;
+const connections: Record<string, Connection> = {};
+
+export function getConfigModel(companyName: string): Model<IConfig> {
+    if (!connections[companyName]) {
+        connections[companyName] = mongoose.createConnection(
+            `${process.env.DB_URL!}${companyName}${process.env.OPTIONS_DB_URL}`
+        );
+    }
+
+    return connections[companyName].model<IConfig>(
+        "Config",
+        configSchema,
+        "Config"
+    );
+}

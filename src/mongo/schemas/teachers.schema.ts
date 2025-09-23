@@ -1,4 +1,5 @@
-import mongoose from "mongoose";
+import mongoose, { Connection, Model } from "mongoose";
+import { ITeachers } from "../../Modules/Teachers/Models/Teachers.models";
 
 const teacherSchema = new mongoose.Schema({
     birthday: String,
@@ -21,5 +22,18 @@ const teacherSchema = new mongoose.Schema({
     createDate: String,
 });
 
-const teachersModelMongo = mongoose.model("Teachers", teacherSchema);
-export default teachersModelMongo;
+const connections: Record<string, Connection> = {};
+
+export function getTeachersModel(companyName: string): Model<ITeachers> {
+    if (!connections[companyName]) {
+        connections[companyName] = mongoose.createConnection(
+            `${process.env.DB_URL!}${companyName}${process.env.OPTIONS_DB_URL}`
+        );
+    }
+
+    return connections[companyName].model<ITeachers>(
+        "Teachers",
+        teacherSchema,
+        "Teachers"
+    );
+}
