@@ -7,6 +7,7 @@ import { getCompanyName } from "../../Others/Helpers/getCompanyName";
 import { ResponseMessages } from "../../Others/Models/ResponseMessages";
 import { SearchPagedListStudents } from "../Models/Search";
 import { ChangeStatusPerson, IStudents, PagedListStudents, StudentsActives } from "../Models/Students.models";
+import { getStudentModel } from "../../../mongo/schemas/students.schema";
 
 export const getFullNameStudentById = async (id: string): Promise<string> => {
     try {
@@ -311,16 +312,16 @@ export const saveStudentRepository = async (student: IStudents): Promise<Respons
         const companyName = getCompanyName();
         if (!companyName) throw new Error("Company name is not set");
 
-        // Referencia al nuevo documento del movimiento dentro de la subcolección
-        const studentRef = db
-            .collection(companyName)
-            .doc("students")
-            .collection("students")
-            .doc(student.id); // Asegúrate de que movement.id esté definido y sea único
+        const StudentModel = getStudentModel(companyName);
 
-        await studentRef.set(student);
+        await StudentModel.updateOne(
+            { id: student.id },
+            { $set: student },
+            { upsert: true }
+        );
 
-        response.setSuccess("estudiante guardado con éxito");
+        response.setSuccess("Estudiante actualizado correctamente");
+
     } catch (error: any) {
         console.error("Error guardando estudiante:", error);
         response.setError(error.message);

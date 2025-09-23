@@ -20,7 +20,6 @@ import { RouteContacts } from "./Modules/Contacts/Routes/Contacats.routes";
 import { RouteBoutique } from "./Modules/Boutique/Routes/Boutique.routes";
 import { RouteUsers } from "./Modules/Users/Routes/User.routes";
 import { RouteStats } from "./Modules/Others/Routes/Stats.routes";
-import serverless from "serverless-http";
 import connectDB from "./mongo/connectDB";
 
 const app = express();
@@ -49,7 +48,6 @@ app.use(express.json());
 //         return res.status(500).json({ error: response.setError("Error interno del servidor") });
 //     }
 // });
-
 connectDB();
 
 app.get("/api/company/setCompanyName", (req: any, res: any) => {
