@@ -28,7 +28,7 @@ export const getPagedListProductsRepository = async (search: SearchPagedListProd
         const docSnap = await docRef.get();
 
         if (!docSnap.exists) {
-            response.setError("No se encontraron prodcutos");
+            response.setWarning("No se encontraron prodcutos");
             return response;
         }
 
@@ -107,7 +107,7 @@ export const getProductsRepository = async (): Promise<ProductsResponse> => {
         const docSnap = await docRef.get();
 
         if (!docSnap.exists) {
-            response.setError("No se encontraron prodcutos");
+            response.setWarning("No se encontraron prodcutos");
             return response;
         }
 
@@ -138,7 +138,7 @@ export const getProductsByStatusRepository = async (status: string): Promise<Pro
         const docSnap = await docRef.get();
 
         if (!docSnap.exists) {
-            response.setError("No se encontraron prodcutos");
+            response.setWarning("No se encontraron prodcutos");
             return response;
         }
 
@@ -190,7 +190,7 @@ export const getPagedListProductChooserRepository = async (search: SearchPagedLi
         const docSnap = await docRef.get();
 
         if (!docSnap.exists) {
-            response.setError("No se encontraron prodcutos");
+            response.setWarning("No se encontraron prodcutos");
             return response;
         }
 

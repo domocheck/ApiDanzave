@@ -6,7 +6,7 @@ export function checkStatusActivity(act: IContactsActivities): string {
     const now = new Date();
     const dateContactAct = formatDateToDate(act.nextContactDate?.toString());
 
-    const differenceInDays = getDifferenceInDays(now, dateContactAct);
+    const differenceInDays = getDifferenceInDays(now, dateContactAct!);
 
     if (differenceInDays > 0) return 'Sin vencer';
     if (differenceInDays >= -2) return 'Vencida';

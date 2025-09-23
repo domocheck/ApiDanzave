@@ -20,19 +20,19 @@ export const getAssistsByClassId = async (classId: string): Promise<Assists> => 
         if (!companyName) throw new Error("Company name is not set");
 
         // Referencia al documento "assists"
-        const docRef = db.collection(companyName).doc("assists");
+        const docRef = db.collection(companyName).doc("assists").collection("assists").where("idClass", "==", classId);
         const docSnap = await docRef.get();
 
-        if (!docSnap.exists) {
-            response.setError("No se encontraron asistencias");
+        if (docSnap.empty) {
+            response.setWarning("No se encontraron asistencias");
             return response;
         }
 
         // Obtener solo la propiedad 'assists' del documento
-        const assistsData = docSnap.data()?.assists ?? [];
+        const assistsData = docSnap.docs.map((doc) => doc.data() as IAssists);
 
         // Filtrar directamente mientras se asigna a response.Items
-        response.Items = assistsData.filter((as: IAssists) => as.idClass === classId);
+        response.Items = assistsData;
 
         if (response.Items.length === 0) {
             response.setWarning("No se encontraron asistencias para esta clase");
@@ -54,16 +54,16 @@ export const getAssistsByPersonId = async (personId: string): Promise<Assists> =
         if (!companyName) throw new Error("Company name is not set");
 
         // Referencia al documento "assists"
-        const docRef = db.collection(companyName).doc("assists");
+        const docRef = db.collection(companyName).doc("assists").collection("assists").where("idPerson", "==", personId);
         const docSnap = await docRef.get();
 
-        if (!docSnap.exists) {
-            response.setError("No se encontraron asistencias");
+        if (docSnap.empty) {
+            response.setWarning("No se encontraron asistencias");
             return response;
         }
 
         // Obtener solo la propiedad 'assists' del documento
-        const assistsData = docSnap.data()?.assists ?? [];
+        const assistsData = docSnap.docs.map((doc) => doc.data() as IAssists);
 
         // Filtrar directamente mientras se asigna a response.Items
         response.Items = assistsData.filter((as: IAssists) => {
@@ -94,7 +94,7 @@ export const getAssistById = async (assistId: string): Promise<IAssists> => {
         if (!companyName) throw new Error("Company name is not set");
 
         // Referencia al documento "assists"
-        const docRef = db.collection(companyName).doc("assists");
+        const docRef = db.collection(companyName).doc("assists").collection("assists").doc(assistId);
         const docSnap = await docRef.get();
 
         if (!docSnap.exists) {
@@ -102,10 +102,8 @@ export const getAssistById = async (assistId: string): Promise<IAssists> => {
         }
 
         // Obtener solo la propiedad 'assists' del documento
-        const assistsData = docSnap.data()?.assists ?? [];
 
-        // Filtrar directamente mientras se asigna a response.Items
-        assist = assistsData.find((as: IAssists) => as.id === assistId);
+        assist = docSnap.data() as IAssists;
 
         return assist
     } catch (error) {
@@ -120,20 +118,17 @@ export const getAssistsByDateRepository = async (date: Date): Promise<IAssists[]
         const companyName = getCompanyName();
         if (!companyName) throw new Error("Company name is not set");
 
+        const dateSearch = format(date, 'full');
         // Referencia al documento "assists"
-        const docRef = db.collection(companyName).doc("assists");
+        const docRef = db.collection(companyName).doc("assists").collection("assists").where("date", "==", dateSearch);
         const docSnap = await docRef.get();
 
-        if (!docSnap.exists) {
+        if (docSnap.empty) {
             throw new Error("No se encontraron asistencias");
         }
-        const dateSearch = format(date, 'full');
-        console.log(dateSearch)
-        console.log(date)
         // Obtener solo la propiedad 'assists' del documento
-        return docSnap.data()?.assists.filter((as: IAssists) => as.date === dateSearch) ?? [];
+        return docSnap.docs.map((doc) => doc.data() as IAssists);
 
-        return assist
     } catch (error) {
         console.error("Error obteniendo asistencias:", error);
         throw new Error("Error interno del servidor");
@@ -146,15 +141,39 @@ export const getAssistsRepository = async (): Promise<IAssists[]> => {
         if (!companyName) throw new Error("Company name is not set");
 
         // Referencia al documento "assists"
-        const docRef = db.collection(companyName).doc("assists");
+        const docRef = db.collection(companyName).doc("assists").collection("assists");
         const docSnap = await docRef.get();
 
-        if (!docSnap.exists) {
+        if (docSnap.empty) {
             throw new Error("No se encontraron asistencias");
         }
 
         // Obtener solo la propiedad 'assists' del documento
-        return docSnap.data()?.assists ?? [];
+        return docSnap.docs.map((doc) => doc.data() as IAssists);
+
+    } catch (error) {
+        console.error("Error obteniendo asistencias:", error);
+        throw new Error("Error interno del servidor");
+    }
+};
+
+export const getAssistsByTeacherIdAndClassRepository = async (teacherId: string): Promise<IAssists[]> => {
+    try {
+        const companyName = getCompanyName();
+        if (!companyName) throw new Error("Company name is not set");
+
+        // Referencia al documento "assists"
+        const docRef = db.collection(companyName).doc("assists").collection("assists")
+            .where("idTeacher", "==", teacherId)
+            .where("idClass", "!=", null);
+        const docSnap = await docRef.get();
+
+        if (docSnap.empty) {
+            throw new Error("No se encontraron asistencias");
+        }
+
+        // Obtener solo la propiedad 'assists' del documento
+        return docSnap.docs.map((doc) => doc.data() as IAssists);
 
     } catch (error) {
         console.error("Error obteniendo asistencias:", error);
@@ -169,20 +188,22 @@ export const checkIsGenerateAssist = async (classId: string, date: string): Prom
         if (!companyName) throw new Error("Company name is not set");
 
         // Referencia al documento "assists"
-        const docRef = db.collection(companyName).doc("assists");
+        const docRef = db.collection(companyName).doc("assists").collection("assists")
+            .where("date", "==", date)
+            .where("idClass", "==", classId);
+
         const docSnap = await docRef.get();
 
-        if (!docSnap.exists) {
+        if (docSnap.empty) {
             return response;
         }
 
         // Obtener solo la propiedad 'assists' del documento
-        const assistsData = docSnap.data()?.assists ?? [];
+        const assistsData = docSnap.docs.map((doc) => doc.data() as IAssists);
 
         // Filtrar directamente mientras se asigna a response.Items
-        const data = assistsData.filter((as: IAssists) => as.idClass === classId && as.date === date);
 
-        response = data.length === 0;
+        response = assistsData.length === 0;
 
         return response;
     } catch (error) {
@@ -209,17 +230,16 @@ export const addAssistRepository = async (idClass: string): Promise<ResponseMess
             idTeacher: '',
         };
 
-        // Referencia al documento "assists"
-        const docRef = db.collection(companyName).doc("assists");
-        const docSnap = await docRef.get();
-        const assistsData = docSnap.data()?.assists ?? [];
-        assistsData.unshift(newAssist);
+        // Referencia al nuevo documento del movimiento dentro de la subcolección
+        const assistRef = db
+            .collection(companyName)
+            .doc("assists")
+            .collection("assists")
+            .doc(newAssist.id); // Asegúrate de que movement.id esté definido y sea único
 
-        // Actualizar el documento con la propiedad 'assists'
-        await docRef.update({
-            assists: assistsData,
-        });
+        await assistRef.set(newAssist);
 
+        response.setSuccess("asistencia guardada con éxito");
         return response;
     } catch (error) {
         console.error("Error obteniendo asistencias:", error);
@@ -234,27 +254,29 @@ export const chargePresencesRepository = async (newAssist: AssistPerson): Promis
         const companyName = getCompanyName();
         if (!companyName) throw new Error("Company name is not set");
 
-        const docRef = db.collection(companyName).doc("assists");
+        const docRef = db
+            .collection(companyName)
+            .doc("assists")
+            .collection("assists")
+            .doc(newAssist.idAssist);
+
         const docSnap = await docRef.get();
+
         if (!docSnap.exists) {
-            response.setError("No se encontraron asistencias");
+            response.setWarning("Asistencia no encontrada");
             return response;
         }
 
-        const assistsData = docSnap.data()?.assists ?? [];
-        const currentAssists = assistsData.find((assist: IAssists) => assist.id === newAssist.idAssist);
-        if (!currentAssists) {
-            response.setError("No se encontró la asistencia correspondiente");
-            return response;
-        }
+        const currentAssists = docSnap.data() as any;
+
 
         if (newAssist.type === 'teacher') {
             if (newAssist.idPersonSustitute) {
                 currentAssists.idTeacher = newAssist.idPerson;
-                currentAssists.idSustitute = newAssist.idPersonSustitute;
+                currentAssists.idTeacherSustitute = newAssist.idPersonSustitute;
             } else {
                 currentAssists.idTeacher = newAssist.idPerson;
-                currentAssists.idSustitute = '';
+                currentAssists.idTeacherSustitute = '';
             }
 
             if (newAssist.status !== 'presents') {
@@ -284,7 +306,7 @@ export const chargePresencesRepository = async (newAssist: AssistPerson): Promis
         }
 
         // **IMPORTANTE: Asegurar que la escritura se complete antes de retornar**
-        await docRef.update({ assists: assistsData });
+        await docRef.update(currentAssists);
 
         response.setSuccess('Asistencia cargada con éxito');
     } catch (error) {
@@ -294,110 +316,112 @@ export const chargePresencesRepository = async (newAssist: AssistPerson): Promis
 
     return response;
 };
-
 export const getAssistsByStudentId = async (studentId: string): Promise<IAssists[]> => {
-    let assist = [] as IAssists[];
-    try {
-        const companyName = getCompanyName();
-        if (!companyName) throw new Error("Company name is not set");
+    const companyName = getCompanyName();
+    if (!companyName) throw new Error("Company name is not set");
 
-        // Referencia al documento "assists"
-        const docRef = db.collection(companyName).doc("assists");
-        const docSnap = await docRef.get();
+    const assistsRef = db.collection(companyName).doc("assists").collection("assists");
+    const queries = [
+        assistsRef.where("presents", "array-contains", studentId),
+        assistsRef.where("missing", "array-contains", studentId),
+        assistsRef.where("absent", "array-contains", studentId),
+        assistsRef.where("disease", "array-contains", studentId),
+        assistsRef.where("proofClass", "array-contains", studentId),
+    ];
 
-        if (!docSnap.exists) {
-            throw new Error("No se encontraron asistencias");
-        }
+    const results: IAssists[] = [];
 
-        // Obtener solo la propiedad 'assists' del documento
-        const assistsData = docSnap.data()?.assists ?? [];
-
-        // Filtrar directamente mientras se asigna a response.Items
-        assist = assistsData.filter((assist: IAssists) => {
-            return (
-                assist.absent.includes(studentId) ||
-                assist.disease.includes(studentId) ||
-                assist.presents.includes(studentId) ||
-                assist.proofClass.includes(studentId) ||
-                assist.missing.includes(studentId)
-            );
+    for (const q of queries) {
+        const snap = await q.get();
+        snap.forEach((doc) => {
+            const data = doc.data() as IAssists;
+            // evitar duplicados
+            if (!results.find(r => r.id === doc.id)) {
+                results.push({ ...data, id: doc.id });
+            }
         });
-
-        return assist
-    } catch (error) {
-        console.error("Error obteniendo asistencias:", error);
-        throw new Error("Error interno del servidor");
     }
 
-}
+    if (results.length === 0) throw new Error("No se encontraron asistencias");
+
+    return results;
+};
 
 export const getAssistsByTeacherId = async (teacherId: string): Promise<IAssists[]> => {
-    let assist = [] as IAssists[];
-    try {
-        const companyName = getCompanyName();
-        if (!companyName) throw new Error("Company name is not set");
+    const companyName = getCompanyName();
+    if (!companyName) throw new Error("Company name is not set");
 
-        // Referencia al documento "assists"
-        const docRef = db.collection(companyName).doc("assists");
-        const docSnap = await docRef.get();
+    const assistsRef = db.collection(companyName).doc("assists").collection("assists").where("idTeacher", "==", teacherId);
+    const queries = [
+        assistsRef.where("presents", "array-contains", teacherId),
+        assistsRef.where("missing", "array-contains", teacherId),
+        assistsRef.where("absent", "array-contains", teacherId),
+        assistsRef.where("disease", "array-contains", teacherId),
+        assistsRef.where("proofClass", "array-contains", teacherId),
+    ];
 
-        if (!docSnap.exists) {
-            throw new Error("No se encontraron asistencias");
-        }
+    const results: IAssists[] = [];
 
-        // Obtener solo la propiedad 'assists' del documento
-        const assistsData = docSnap.data()?.assists ?? [];
-
-        // Filtrar directamente mientras se asigna a response.Items
-        assist = assistsData.filter((assist: IAssists) => {
-            return (
-                assist.absent.includes(teacherId) ||
-                assist.disease.includes(teacherId) ||
-                assist.presents.includes(teacherId) ||
-                assist.proofClass.includes(teacherId) ||
-                assist.missing.includes(teacherId) ||
-                assist.idTeacher === teacherId
-            );
+    for (const q of queries) {
+        const snap = await q.get();
+        snap.forEach((doc) => {
+            const data = doc.data() as IAssists;
+            // evitar duplicados
+            if (!results.find(r => r.id === doc.id)) {
+                results.push({ ...data, id: doc.id });
+            }
         });
-
-        return assist
-    } catch (error) {
-        console.error("Error obteniendo asistencias:", error);
-        throw new Error("Error interno del servidor");
     }
 
-}
+    if (results.length === 0) throw new Error("No se encontraron asistencias");
+
+    return results;
+};
 
 export const getAssistsTakenRepository = async (): Promise<IAssists[]> => {
-    let assist: IAssists[] = [];
+    const assists: IAssists[] = [];
+
     try {
         const companyName = getCompanyName();
         if (!companyName) throw new Error("Company name is not set");
 
-        // Referencia al documento "assists"
-        const docRef = db.collection(companyName).doc("assists");
-        const docSnap = await docRef.get();
+        const assistsRef = db
+            .collection(companyName)
+            .doc("assists")
+            .collection("assists");
 
-        if (!docSnap.exists) {
+        // Realizamos una consulta que filtre por cualquier campo que tenga contenido
+        const queries = [
+            assistsRef.where("presents", "!=", []),
+            assistsRef.where("missing", "!=", []),
+            assistsRef.where("absent", "!=", []),
+            assistsRef.where("disease", "!=", []),
+            assistsRef.where("proofClass", "!=", []),
+        ];
+
+        const results: IAssists[] = [];
+
+        for (const query of queries) {
+            const snap = await query.get();
+            snap.forEach(doc => {
+                const data = doc.data() as IAssists;
+                if (!results.find(r => r.id === doc.id)) {
+                    results.push({ ...data, id: doc.id });
+                }
+            });
+        }
+
+        if (results.length === 0) {
             throw new Error("No se encontraron asistencias");
         }
 
-        // Obtener solo la propiedad 'assists' del documento
-        const assistsData = docSnap.data()?.assists ?? [];
-
-        // Filtrar directamente mientras se asigna a response.Items
-        assist = assistsData.filter((a: IAssists) => a.absent.length > 0 ||
-            a.disease.length > 0 ||
-            a.missing.length > 0 ||
-            a.presents.length > 0 ||
-            a.proofClass.length > 0,);
-
-        return assist
+        return results;
     } catch (error) {
         console.error("Error obteniendo asistencias:", error);
         throw new Error("Error interno del servidor");
     }
-}
+};
+
 
 export const getPagedListStudentAssistsRepository = async (search: SearchPagedListHistoryAssistsPersons): Promise<PagedListHistoryAssistsPersons> => {
     const response = new PagedListHistoryAssistsPersons();
@@ -409,8 +433,12 @@ export const getPagedListStudentAssistsRepository = async (search: SearchPagedLi
             return response;
         }
 
-        const assistsByStudent = assists.map(async (assist: IAssists) => {
-            const classe = await getClassByIdRepository(assist.idClass);
+        let uniqueClassesId = Array.from(new Set(assists.map((a) => a.idClass)));
+        let classesPromise = uniqueClassesId.map(async (id) => await getClassByIdRepository(id));
+        let classes = await Promise.all(classesPromise);
+
+        let assist = assists.map((assist: IAssists) => {
+            const classe = classes.find((c) => c.id === assist.idClass)!;
             const danceClasse = classe.dance;
             const assistByStudent = {} as IPagedListHistoryAssistsPerson;
             assistByStudent.date = assist.date;
@@ -434,8 +462,6 @@ export const getPagedListStudentAssistsRepository = async (search: SearchPagedLi
             }
             return assistByStudent;
         });
-
-        let assist = await Promise.all(assistsByStudent);
 
         if (search.Assist && search.Assist !== 'all') {
             assist = assist.filter((assist: IPagedListHistoryAssistsPerson) => assist.status.toLowerCase() === search.Assist.toLowerCase());
@@ -469,9 +495,12 @@ export const getPagedListTeacherAssistsRepository = async (search: SearchPagedLi
         if (assists.length === 0) {
             return response;
         }
+        let uniqueClassesId = Array.from(new Set(assists.map((a) => a.idClass)));
+        let classesPromise = uniqueClassesId.map(async (id) => await getClassByIdRepository(id));
+        let classes = await Promise.all(classesPromise);
 
-        const assistsByStudent = assists.map(async (assist: IAssists) => {
-            const classe = await getClassByIdRepository(assist.idClass);
+        let assist = assists.map((assist: IAssists) => {
+            const classe = classes.find((c) => c.id === assist.idClass)!;
             const danceClasse = classe.dance;
             const assistByStudent = {} as IPagedListHistoryAssistsPerson;
             assistByStudent.date = assist.date;
@@ -496,7 +525,6 @@ export const getPagedListTeacherAssistsRepository = async (search: SearchPagedLi
             return assistByStudent;
         });
 
-        let assist = await Promise.all(assistsByStudent);
 
         if (search.Assist && search.Assist !== 'all') {
             assist = assist.filter((assist: IPagedListHistoryAssistsPerson) => assist.status.toLowerCase() === search.Assist.toLowerCase());
@@ -531,8 +559,12 @@ export const getPagedListContactAssistsRepository = async (search: SearchPagedLi
             return response;
         }
 
-        const assistsByStudent = assists.map(async (assist: IAssists) => {
-            const classe = await getClassByIdRepository(assist.idClass);
+        let uniqueClassesId = Array.from(new Set(assists.map((a) => a.idClass)));
+        let classesPromise = uniqueClassesId.map(async (id) => await getClassByIdRepository(id));
+        let classes = await Promise.all(classesPromise);
+
+        let assist = assists.map((assist: IAssists) => {
+            const classe = classes.find((c) => c.id === assist.idClass)!;
             const danceClasse = classe.dance;
             const assistByStudent = {} as IPagedListHistoryAssistsPerson;
             assistByStudent.date = assist.date;
@@ -557,7 +589,6 @@ export const getPagedListContactAssistsRepository = async (search: SearchPagedLi
             return assistByStudent;
         });
 
-        let assist = await Promise.all(assistsByStudent);
 
         if (search.Assist && search.Assist !== 'all') {
             assist = assist.filter((assist: IPagedListHistoryAssistsPerson) => assist.status.toLowerCase() === search.Assist.toLowerCase());

@@ -26,8 +26,8 @@ export const getPagedListStudents = async (req: Request, res: Response): Promise
         const search = new SearchPagedListStudents()
         search.Name = name as string,
             search.Status = status as string,
-            search.Page = Number(page)
-        search.IsCareerStudent = (isCareerStudent === 'true');
+            search.Page = Number(page),
+            search.IsCareerStudent = (isCareerStudent === 'true');
         const response = await getPagedListStudentsService(search);
         res.status(200).send(response);
     } catch (error: any) {

@@ -1,9 +1,17 @@
-export const formatDateToDate = (date: string) => {
+import { format } from "@formkit/tempo";
+
+export const formatDateToDate = (date: string): Date => {
     const regex = /(\d{1,2}) de (\w+) de (\d{4})/;
-    const match = date.match(regex);
+    let match = date.match(regex);
 
     if (!match) {
-        throw new Error("Formato de fecha no válido");
+        try {
+            const newDate = convertirFechaInglesAEspanol(date);
+            match = newDate.match(regex); // reintentar parsear
+            if (!match) throw new Error(); // en caso de que aún no funcione
+        } catch (error) {
+            throw new Error("Formato de fecha no válido");
+        }
     }
 
     const [_, dia, mesTexto, año] = match;
@@ -37,3 +45,26 @@ export const formatDateToDate = (date: string) => {
 export const normalizeDate = (d: Date): Date => {
     return new Date(d.getFullYear(), d.getMonth(), d.getDate());
 };
+
+function convertirFechaInglesAEspanol(fechaEnIngles: string) {
+    const diasSemana = [
+        'domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'
+    ];
+    const meses = [
+        'enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio',
+        'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'
+    ];
+
+    const parsedDate = new Date(fechaEnIngles);
+
+    if (isNaN(parsedDate.getTime())) {
+        throw new Error("Formato de fecha no válido");
+    }
+
+    const diaSemana = diasSemana[parsedDate.getDay()];
+    const dia = parsedDate.getDate();
+    const mes = meses[parsedDate.getMonth()];
+    const anio = parsedDate.getFullYear();
+
+    return `${diaSemana}, ${dia} de ${mes} de ${anio}`;
+}

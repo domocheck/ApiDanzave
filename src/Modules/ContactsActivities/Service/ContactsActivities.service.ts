@@ -11,7 +11,7 @@ import { getContactByIdRepository, saveContactRepository } from "../../Contacts/
 import { addStudentToClassRepository, checkIsPersonOnClasseRepository, getClassesByStatusRepository, getClassesGropuedRepository, removeStudentToClassRepository } from "../../Classes/Repository/Classes.repository";
 import { getPaymentsMethods } from "../../Config/Controller/Config.controller";
 import { getPaymentsMethodsFromConfigRepository, getUsersFromConfigRepository } from "../../Config/Repository/Config.repository";
-import { getMovementByIdRepository, getMovementByPersonIdRepository } from "../../Drawers/Repository/Drawer.repository";
+import { getFullPerson, getMovementByPersonIdRepository } from "../../Drawers/Repository/Drawer.repository";
 import { removeStudentFromClass } from "../../Classes/Controller/Classes.controller";
 import { removeStudentFromClassService } from "../../Classes/Service/Classes.service";
 import { convertedContactToStudentService } from "../../Students/Service/Students.service";
@@ -22,15 +22,22 @@ import { ResponseMessages } from "../../Others/Models/ResponseMessages";
 export const getObservationsByContactIdService = async (contactId: string): Promise<HistoryActivities> => {
     let response = new HistoryActivities();
     const activities = await getContactActivitiesByContactIdRepository(contactId);
-    response.History = await Promise.all(activities.map(async (act: IContactsActivities) => {
+
+    let uniquePersonIds = Array.from(new Set(activities.map((m) => m.userId)));
+    let personsPromise = uniquePersonIds.map(async (id) => await getFullPerson(id));
+    let persons = await Promise.all(personsPromise);
+
+
+    response.History = activities.map((act: IContactsActivities) => {
+        const person = persons.find((p) => p?.id === act.userId)!;
         return {
             activityId: act.id,
             observation: act.observations,
             dateCreate: act.updateDate.toString(),
             userId: act.userId,
-            userName: await getFullNameUserIdById(act.userId)
+            userName: `${person?.name} ${person?.lastName}`
         };
-    }));
+    });
     return response;
 
 }

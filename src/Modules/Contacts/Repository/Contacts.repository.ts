@@ -8,26 +8,27 @@ import { IContacts } from "../Models/Contact.models";
 import { ChangeStatusPerson, IPagedListContact, PagedListContacts, SearchPagedListContacts } from "../Models/Contacts-paged-list.modelst";
 
 export const getFullNameContactById = async (id: string): Promise<string> => {
-    let response = "";
     try {
         const companyName = getCompanyName();
         if (!companyName) throw new Error("Company name is not set");
+        if (!id) return "";
 
-        const docRef = db.collection(companyName).doc("contacts");
+        const docRef = db.collection(companyName).doc("contacts").collection("contacts").doc(id);
         const docSnap = await docRef.get();
 
         if (!docSnap.exists) {
-            throw new Error("No se encontro el nombre");
+            return "";
         }
-        const contacts = docSnap.data()?.contacts ?? [];
 
-        const contact = contacts.find((s: IContacts) => s.id === id);
-        if (contact) {
-            response = contact.name + " " + contact.lastName;
+        const contact = docSnap.data() as IContacts;
+
+        if (!contact || !contact.name || !contact.lastName) {
+            throw new Error("Datos del contacto incompletos");
         }
-        return response;
+
+        return `${contact.name} ${contact.lastName}`;
     } catch (error) {
-        console.error("Error obteniendo asistencias:", error);
+        console.error("Error obteniendo contacto:", error);
         throw new Error("Error interno del servidor");
     }
 }
@@ -40,15 +41,22 @@ export const getPagedListContactsRepository = async (search: SearchPagedListCont
         if (!companyName) {
             throw new Error("Company name is not set");
         }
-        const docRef = db.collection(companyName).doc("contacts");
+        let docRef;
+
+        if (search.Status && search.Status !== 'all') {
+            docRef = db.collection(companyName).doc("contacts").collection("contacts").where("status", "!=", "inhabilitado").where("status", "==", search.Status);
+        } else {
+            docRef = db.collection(companyName).doc("contacts").collection("contacts").where("status", "!=", "inhabilitado")
+        }
+
         const docSnap = await docRef.get();
 
-        if (!docSnap.exists) {
-            response.setError("No se encontraron esudiantes");
+        if (docSnap.empty) {
+            response.setWarning("No se encontraron contactos");
             return response;
         }
 
-        let contactsData = docSnap.data()?.contacts.filter((c: IContacts) => c.status !== 'inhabilitado');
+        let contactsData = docSnap.docs.map((doc) => doc.data() as IContacts);
 
         if (!Array.isArray(contactsData)) {
             response.setError("No se encontraron clases válidas");
@@ -93,46 +101,55 @@ export const getPagedListContactsRepository = async (search: SearchPagedListCont
 }
 
 export const changeStatusContactRepository = async (changeStatus: ChangeStatusPerson): Promise<ResponseMessages> => {
-    let response = new ResponseMessages();
+    const response = new ResponseMessages();
+
     try {
         const companyName = getCompanyName();
         if (!companyName) throw new Error("Company name is not set");
 
-        const docRef = db.collection(companyName).doc("contacts");
-        const docSnap = await docRef.get();
+        // Referencia al doc individual del estudiante
+        const contactDocRef = db
+            .collection(companyName)
+            .doc("contacts")
+            .collection("contacts")
+            .doc(changeStatus.id);
 
-        if (!docSnap.exists) {
-            throw new Error("No se encontro el nombre");
+        const contactDoc = await contactDocRef.get();
+
+        if (!contactDoc.exists) {
+            throw new Error("No se encontró el contact");
         }
 
-        const contacts = docSnap.data()?.contacts ?? [];
+        const contact = contactDoc.data() as IContacts;
 
-        const contact: IContacts = contacts.find((s: IContacts) => s.id === changeStatus.id);
-
-        if (!contact) {
-            throw new Error("No se encontro el contacto");
-        }
-
+        // Actualizamos estado
         contact.status = changeStatus.newStatus;
 
-        if (changeStatus.newStatus === 'inactivo') {
+        if (changeStatus.newStatus === "inactivo") {
             if (contact.classes && contact.classes.length > 0) {
-                for (let classe of contact.classes) {
+                for (const classe of contact.classes) {
                     await removeStudentToClassRepository(classe, changeStatus.id);
                 }
             }
             contact.classes = [];
-            contact.inactiveDate = format(new Date(), 'full');
+            contact.inactiveDate = format(new Date(), "full");
         }
 
         contact.idReason = changeStatus.reasonId;
         contact.observationsInactive = changeStatus.observation;
-        await docRef.update({ contacts });
 
-        response.setSuccess("Contacto actualizado correctamente");
+        // Actualizar solo el documento individual del estudiante
+        await contactDocRef.update({
+            status: contact.status,
+            classes: contact.classes,
+            inactiveDate: contact.inactiveDate,
+            idReason: contact.idReason,
+            observationsInactive: contact.observationsInactive,
+        });
 
+        response.setSuccess("Estudiante actualizado correctamente");
     } catch (error: any) {
-        response.setError(error.message);
+        response.setError(error.message || "Error interno del servidor");
     }
 
     return response;
@@ -146,80 +163,74 @@ export const getContactByIdRepository = async (id: string): Promise<IContacts> =
             throw new Error("Company name is not set");
         }
 
-        // Referencia al documento "classes" dentro de la colección de la compañía
-        const docRef = db.collection(companyName).doc("contacts");
-
-        // Obtener el documento
+        const docRef = db.collection(companyName).doc("contacts").collection("contacts").doc(id);
         const docSnap = await docRef.get();
 
         if (!docSnap.exists) {
-            throw new Error("No se encontro el contacto")
+            return {} as IContacts
         }
 
-        let contact: IContacts = docSnap.data()?.contacts.filter((t: IContacts) => t.id === id)[0];
+        const contact = docSnap.data() as IContacts;
+
+        if (!contact || !contact.name || !contact.lastName) {
+            throw new Error("Datos del contacto incompletos");
+        }
 
         return contact;
     } catch (error) {
         console.error("Error obteniendo colores:", error);
-        throw new Error("No se encontro el contacto")
+        throw new Error("No se encontro el alumno")
     }
 }
 
 export const getContactsByStatusRepository = async (status: string): Promise<IContacts[]> => {
     try {
+        let contactsByStatus = [] as IContacts[];
         const companyName = getCompanyName();
+        if (!companyName) throw new Error("Company name is not set");
 
-        if (!companyName) {
-            throw new Error("Company name is not set");
+        const query = db
+            .collection(companyName)
+            .doc("contacts")
+            .collection("contacts")
+            .where("status", "==", status)
+            .orderBy("name");
+
+        const querySnapshot = await query.get();
+
+        if (querySnapshot.empty) {
+            return contactsByStatus;
         }
 
-        // Referencia al documento "classes" dentro de la colección de la compañía
-        const docRef = db.collection(companyName).doc("contacts");
-
-        // Obtener el documento
-        const docSnap = await docRef.get();
-
-        if (!docSnap.exists) {
-            throw new Error("No se encontro el contacto")
-        }
-
-        let contacts: IContacts[] = docSnap.data()?.contacts.filter((t: IContacts) => t.status === status);
-
-        return contacts;
+        contactsByStatus = querySnapshot.docs.map(doc => doc.data() as IContacts);
+        return contactsByStatus;
     } catch (error) {
-        console.error("Error obteniendo colores:", error);
-        throw new Error("No se encontro el contacto")
+        console.error("Error obteniendo contactos por estado:", error);
+        throw new Error("Error interno del servidor");
     }
 }
 
-export const saveContactRepository = async (student: IContacts): Promise<ResponseMessages> => {
+export const saveContactRepository = async (contact: IContacts): Promise<ResponseMessages> => {
     const response = new ResponseMessages();
+
     try {
         const companyName = getCompanyName();
         if (!companyName) throw new Error("Company name is not set");
 
-        const docRef = db.collection(companyName).doc("contacts");
-        const docSnap = await docRef.get();
+        // Referencia al nuevo documento del movimiento dentro de la subcolección
+        const contactRef = db
+            .collection(companyName)
+            .doc("contacts")
+            .collection("contacts")
+            .doc(contact.id); // Asegúrate de que movement.id esté definido y sea único
 
-        if (!docSnap.exists) {
-            throw new Error("No se encontro el nombre");
-        }
+        await contactRef.set(contact);
 
-        const contacts: IContacts[] = docSnap.data()?.contacts ?? [];
-        const index = contacts.findIndex((s: IContacts) => s.id === student.id);
-
-        if (index !== -1) {
-            contacts.splice(index, 1, student);
-        } else {
-            contacts.unshift(student);
-        }
-
-        await docRef.update({ contacts });
-        response.setSuccess("Contacto actualizado correctamente");
-
+        response.setSuccess("contacto guardado con éxito");
     } catch (error: any) {
+        console.error("Error guardando contacto:", error);
         response.setError(error.message);
-        return response;
     }
-    return response
+
+    return response;
 }

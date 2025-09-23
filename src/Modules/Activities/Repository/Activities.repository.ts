@@ -21,7 +21,7 @@ export const getActivitiesRepository = async (search: SearchActivities): Promise
 
         // Verificar si el documento existe
         if (!docSnap.exists) {
-            response.setError("No se encontraron actividades");
+            response.setWarning("No se encontraron actividades");
             return response;
         }
 
@@ -30,7 +30,7 @@ export const getActivitiesRepository = async (search: SearchActivities): Promise
 
         // Verificar si 'activities' existe y es un arreglo
         if (!Array.isArray(activitiesData)) {
-            response.setError("No se encontraron actividades válidas");
+            response.setWarning("No se encontraron actividades válidas");
             return response;
         }
 
@@ -98,7 +98,7 @@ export const getAssistsByActivityId = async (activityId: string): Promise<Assist
         const docSnap = await docRef.get();
 
         if (!docSnap.exists) {
-            response.setError("No se encontraron asistencias");
+            response.setWarning("No se encontraron asistencias");
             return response;
         }
 

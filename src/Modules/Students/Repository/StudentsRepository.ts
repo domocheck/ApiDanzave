@@ -9,30 +9,30 @@ import { SearchPagedListStudents } from "../Models/Search";
 import { ChangeStatusPerson, IStudents, PagedListStudents, StudentsActives } from "../Models/Students.models";
 
 export const getFullNameStudentById = async (id: string): Promise<string> => {
-    let response = "";
     try {
         const companyName = getCompanyName();
         if (!companyName) throw new Error("Company name is not set");
+        if (!id) return "";
 
-        const docRef = db.collection(companyName).doc("students");
+        const docRef = db.collection(companyName).doc("students").collection("students").doc(id);
         const docSnap = await docRef.get();
 
         if (!docSnap.exists) {
-            throw new Error("No se encontro el nombre");
+            return "";
         }
 
-        const students = docSnap.data()?.students ?? [];
+        const student = docSnap.data() as IStudents;
 
-        const student = students.find((s: IStudents) => s.id === id);
-        if (student) {
-            response = student.name + " " + student.lastName;
+        if (!student || !student.name || !student.lastName) {
+            throw new Error("Datos del estudiante incompletos");
         }
-        return response;
+
+        return `${student.name} ${student.lastName}`;
     } catch (error) {
-        console.error("Error obteniendo asistencias:", error);
+        console.error("Error obteniendo estudiante:", error);
         throw new Error("Error interno del servidor");
     }
-}
+};
 
 export const getStudentByIdRepository = async (id: string): Promise<IStudents> => {
     try {
@@ -42,17 +42,18 @@ export const getStudentByIdRepository = async (id: string): Promise<IStudents> =
             throw new Error("Company name is not set");
         }
 
-        // Referencia al documento "classes" dentro de la colección de la compañía
-        const docRef = db.collection(companyName).doc("students");
-
-        // Obtener el documento
+        const docRef = db.collection(companyName).doc("students").collection("students").doc(id);
         const docSnap = await docRef.get();
 
         if (!docSnap.exists) {
-            throw new Error("No se encontro el alumno")
+            return {} as IStudents;
         }
 
-        let student: IStudents = docSnap.data()?.students.filter((t: IStudents) => t.id === id)[0];
+        const student = docSnap.data() as IStudents;
+
+        if (!student || !student.name || !student.lastName) {
+            throw new Error("Datos del estudiante incompletos");
+        }
 
         return student;
     } catch (error) {
@@ -62,21 +63,21 @@ export const getStudentByIdRepository = async (id: string): Promise<IStudents> =
 }
 
 export const getStudentsActives = async (): Promise<StudentsActives[]> => {
-    let studentsActives = [] as StudentsActives[];
     try {
+        let studentsActives = [] as StudentsActives[];
         const companyName = getCompanyName();
         if (!companyName) throw new Error("Company name is not set");
 
-        const docRef = db.collection(companyName).doc("students");
+        const docRef = db.collection(companyName).doc("students").collection("students").where("status", "==", "activo").orderBy("name");
         const docSnap = await docRef.get();
 
-        if (!docSnap.exists) {
-            throw new Error("No se encontro el nombre");
+        if (docSnap.empty) {
+            return studentsActives;
         }
 
-        const students = docSnap.data()?.students ?? [];
+        const students = docSnap.docs.map((doc) => doc.data() as IStudents);
 
-        studentsActives = students.filter((s: IStudents) => s.status === 'activo').map((student: IStudents) => {
+        studentsActives = students.map((student: IStudents) => {
             return {
                 id: student.id,
                 name: student.name,
@@ -86,7 +87,7 @@ export const getStudentsActives = async (): Promise<StudentsActives[]> => {
             };
         });
 
-        return studentsActives.sort((a, b) => a.name.localeCompare(b.name))
+        return studentsActives;
     } catch (error) {
         console.error("Error obteniendo asistencias:", error);
         throw new Error("Error interno del servidor");
@@ -94,47 +95,49 @@ export const getStudentsActives = async (): Promise<StudentsActives[]> => {
 }
 
 export const getStudentsByStatus = async (status: string): Promise<IStudents[]> => {
-    let studentsByStatus = [] as IStudents[];
     try {
+        let studentsByStatus = [] as IStudents[];
         const companyName = getCompanyName();
         if (!companyName) throw new Error("Company name is not set");
 
-        const docRef = db.collection(companyName).doc("students");
-        const docSnap = await docRef.get();
+        const query = db
+            .collection(companyName)
+            .doc("students")
+            .collection("students")
+            .where("status", "==", status)
+            .orderBy("name");
 
-        if (!docSnap.exists) {
-            throw new Error("No se encontro el nombre");
+        const querySnapshot = await query.get();
+
+        if (querySnapshot.empty) {
+            return studentsByStatus;
         }
 
-        const students = docSnap.data()?.students ?? [];
-
-        studentsByStatus = students.filter((s: IStudents) => s.status === status);
-
-        return studentsByStatus.sort((a, b) => a.name.localeCompare(b.name))
+        studentsByStatus = querySnapshot.docs.map(doc => doc.data() as IStudents);
+        return studentsByStatus;
     } catch (error) {
-        console.error("Error obteniendo asistencias:", error);
+        console.error("Error obteniendo estudiantes por estado:", error);
         throw new Error("Error interno del servidor");
     }
-}
+};
+
 
 export const getStudentsRepository = async (): Promise<IStudents[]> => {
-    let studentsResponse = [] as IStudents[];
     try {
+        let studentsResponse = [] as IStudents[];
         const companyName = getCompanyName();
         if (!companyName) throw new Error("Company name is not set");
 
-        const docRef = db.collection(companyName).doc("students");
+        const docRef = db.collection(companyName).doc("students").collection("students").orderBy("name");
         const docSnap = await docRef.get();
 
-        if (!docSnap.exists) {
-            throw new Error("No se encontro el nombre");
+        if (docSnap.empty) {
+            return studentsResponse;
         }
 
-        const students = docSnap.data()?.students ?? [];
+        studentsResponse = docSnap.docs.map((doc) => doc.data() as IStudents);
 
-        studentsResponse = students;
-
-        return studentsResponse.sort((a, b) => a.name.localeCompare(b.name))
+        return studentsResponse;
     } catch (error) {
         console.error("Error obteniendo asistencias:", error);
         throw new Error("Error interno del servidor");
@@ -148,7 +151,7 @@ export const addRecoverStudentRepository = async (studentId: string, assistId: s
         if (!companyName) throw new Error("Company name is not set");
 
         // Referencia al documento "assists"
-        const docRef = db.collection(companyName).doc("assists");
+        const docRef = db.collection(companyName).doc("assists").collection("assists").doc(assistId);
         const docSnap = await docRef.get();
 
         if (!docSnap.exists) {
@@ -156,18 +159,18 @@ export const addRecoverStudentRepository = async (studentId: string, assistId: s
         }
 
         // Obtener solo la propiedad 'assists' del documento
-        const assistsData = docSnap.data()?.assists ?? [];
+        const assistsData = docRef as unknown as IAssists;
 
-        const currentAssists = assistsData.find((assist: IAssists) => assist.id === assistId);
+        const currentAssists = assistsData;
+        let currentRecovers = currentAssists.recovers ?? [];
         if (currentAssists) {
-            currentAssists.recovers = currentAssists.recovers ?? [];
-            if (!currentAssists.recovers.includes(studentId)) {
-                currentAssists.recovers.push(studentId);
+            if (!currentRecovers.includes(studentId)) {
+                currentRecovers.push(studentId);
             }
         }
 
         // Actualizar el documento con la propiedad 'assists' actualizada
-        await docRef.update({ assists: assistsData });
+        await docRef.update({ recovers: currentRecovers });
 
         response.setSuccess("Estudiante se agrego a la clase correctamente");
     } catch (error) {
@@ -185,22 +188,25 @@ export const getPagedListStudentsRepository = async (search: SearchPagedListStud
         if (!companyName) {
             throw new Error("Company name is not set");
         }
-        const docRef = db.collection(companyName).doc("students");
+        let docRef;
+        if (search.Status && search.Status !== 'all') {
+            docRef = db.collection(companyName).doc("students").collection("students").where("status", "==", search.Status);
+        } else {
+            docRef = db.collection(companyName).doc("students").collection("students")
+        }
+
         const docSnap = await docRef.get();
 
-        if (!docSnap.exists) {
-            response.setError("No se encontraron esudiantes");
+        if (docSnap.empty) {
+            response.setWarning("No se encontraron actividades");
             return response;
         }
 
-        let studentsData = docSnap.data()?.students;
+        let studentsData = docSnap.docs.map((doc) => doc.data() as IStudents);
 
         if (!Array.isArray(studentsData)) {
-            response.setError("No se encontraron clases válidas");
+            response.setError("No se encontraron estudiantes válidos");
             return response;
-        }
-        if (search.Status && search.Status !== 'all') {
-            studentsData = studentsData.filter((item: IStudents) => item.status === search.Status);
         }
 
         if (search.Name) {
@@ -224,7 +230,7 @@ export const getPagedListStudentsRepository = async (search: SearchPagedListStud
         response.Items = paginatedClasses.map((s: IStudents) => {
             return {
                 id: s.id,
-                status: s.status,
+                status: s.status!,
                 fullName: `${s.name} ${s.lastName}`,
                 numberOfClasses: s.classes?.length || 0
             }
@@ -237,82 +243,88 @@ export const getPagedListStudentsRepository = async (search: SearchPagedListStud
         response.setError("Error interno del servidor");
         return response;
     }
-}
+};
 
-export const changeStatusStudentRepository = async (changeStatus: ChangeStatusPerson): Promise<ResponseMessages> => {
-    let response = new ResponseMessages();
+
+export const changeStatusStudentRepository = async (
+    changeStatus: ChangeStatusPerson
+): Promise<ResponseMessages> => {
+    const response = new ResponseMessages();
+
     try {
         const companyName = getCompanyName();
         if (!companyName) throw new Error("Company name is not set");
 
-        const docRef = db.collection(companyName).doc("students");
-        const docSnap = await docRef.get();
+        // Referencia al doc individual del estudiante
+        const studentDocRef = db
+            .collection(companyName)
+            .doc("students")
+            .collection("students")
+            .doc(changeStatus.id);
 
-        if (!docSnap.exists) {
-            throw new Error("No se encontro el nombre");
+        const studentDoc = await studentDocRef.get();
+
+        if (!studentDoc.exists) {
+            throw new Error("No se encontró el estudiante");
         }
 
-        const students = docSnap.data()?.students ?? [];
+        const student = studentDoc.data() as IStudents;
 
-        const student: IStudents = students.find((s: IStudents) => s.id === changeStatus.id);
-
-        if (!student) {
-            throw new Error("No se encontro el estudiante");
-        }
-
+        // Actualizamos estado
         student.status = changeStatus.newStatus;
 
-        if (changeStatus.newStatus === 'inactivo') {
+        if (changeStatus.newStatus === "inactivo") {
             if (student.classes && student.classes.length > 0) {
-                for (let classe of student.classes) {
+                for (const classe of student.classes) {
                     await removeStudentToClassRepository(classe, changeStatus.id);
                 }
             }
             student.classes = [];
-            student.inactiveDate = format(new Date(), 'full');
+            student.inactiveDate = format(new Date(), "full");
         }
 
         student.idReason = changeStatus.reasonId;
         student.observationsInactive = changeStatus.observation;
-        await docRef.update({ students });
+
+        // Actualizar solo el documento individual del estudiante
+        await studentDocRef.update({
+            status: student.status,
+            classes: student.classes,
+            inactiveDate: student.inactiveDate,
+            idReason: student.idReason,
+            observationsInactive: student.observationsInactive,
+        });
 
         response.setSuccess("Estudiante actualizado correctamente");
-
     } catch (error: any) {
-        response.setError(error.message);
+        response.setError(error.message || "Error interno del servidor");
     }
 
     return response;
-}
+};
+
 
 export const saveStudentRepository = async (student: IStudents): Promise<ResponseMessages> => {
     const response = new ResponseMessages();
+
     try {
         const companyName = getCompanyName();
         if (!companyName) throw new Error("Company name is not set");
 
-        const docRef = db.collection(companyName).doc("students");
-        const docSnap = await docRef.get();
+        // Referencia al nuevo documento del movimiento dentro de la subcolección
+        const studentRef = db
+            .collection(companyName)
+            .doc("students")
+            .collection("students")
+            .doc(student.id); // Asegúrate de que movement.id esté definido y sea único
 
-        if (!docSnap.exists) {
-            throw new Error("No se encontro el nombre");
-        }
+        await studentRef.set(student);
 
-        const students: IStudents[] = docSnap.data()?.students ?? [];
-        const index = students.findIndex((s: IStudents) => s.id === student.id);
-
-        if (index !== -1) {
-            students.splice(index, 1, student);
-        } else {
-            students.unshift(student);
-        }
-
-        await docRef.update({ students });
-        response.setSuccess("Estudiante actualizado correctamente");
-
+        response.setSuccess("estudiante guardado con éxito");
     } catch (error: any) {
+        console.error("Error guardando estudiante:", error);
         response.setError(error.message);
-        return response;
     }
-    return response
+
+    return response;
 }

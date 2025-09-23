@@ -94,7 +94,6 @@ export const generatePresenceService = async (classId: string, assistId: string,
             getAssistsByClassId(classId)
         ]);
     if (!classeRequest || !assistRequest || assistClass.hasErrors()) {
-        response.setWarning('No se encontraron asistencias o clases');
         return response;
     }
     const classe = classeRequest;
