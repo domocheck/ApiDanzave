@@ -21,6 +21,7 @@ import { RouteBoutique } from "./Modules/Boutique/Routes/Boutique.routes";
 import { RouteUsers } from "./Modules/Users/Routes/User.routes";
 import { RouteStats } from "./Modules/Others/Routes/Stats.routes";
 import connectDB from "./mongo/connectDB";
+import serverlessHttp from "serverless-http";
 
 const app = express();
 app.use(cors());
@@ -83,10 +84,10 @@ connectDB().then(() => {
     app.use("/api/users", RouteUsers)
     app.use("/api/stats", RouteStats)
 
-    const PORT = process.env.PORT || 5000;
-    app.listen(PORT, () => console.log(`✅ Servidor en http://localhost:${PORT}`));
+    // const PORT = process.env.PORT || 5000;
+    // app.listen(PORT, () => console.log(`✅ Servidor en http://localhost:${PORT}`));
 
-    // module.exports = serverless(app);
+    module.exports = serverlessHttp(app);
 }).catch((err) => {
     console.error("❌ Error al iniciar el servidor:", err);
 });
