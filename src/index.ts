@@ -31,14 +31,8 @@ app.use(cors());
 app.use(express.json());
 
 // Middleware para asegurar la conexión a MongoDB antes de cualquier request
-app.use(async (req, res, next) => {
-    try {
-        await connectDB(); // conecta solo si no hay conexión
-        next();
-    } catch (err) {
-        console.error("Error conectando a DB:", err);
-        res.status(500).json({ error: "Error interno del servidor" });
-    }
+connectDB().catch(err => {
+    console.error("❌ No se pudo conectar a MongoDB:", err);
 });
 
 // Rutas
