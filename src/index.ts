@@ -22,7 +22,7 @@ import { RouteStats } from "./Modules/Others/Routes/Stats.routes";
 import { ResponseMessages } from "./Modules/Others/Models/ResponseMessages";
 import { CompanyNameSingleton } from "./Modules/Others/Models/Companies";
 
-import connectDB, { getConnection } from "./mongo/connectDB";
+import connectDB from "./mongo/connectDB";
 
 const app = express();
 
@@ -33,14 +33,10 @@ app.use(express.json());
 // Middleware para asegurar la conexión a MongoDB antes de cualquier request
 app.use(async (req, res, next) => {
     try {
-        if (!getConnection()?.readyState) {
-            console.log("Conectando a la base de datos...");
-            await connectDB();
-            console.log("Conexión a DB establecida");
-        }
+        await connectDB(); // conecta solo si no hay conexión
         next();
-    } catch (error) {
-        console.error("Error conectando a MongoDB:", error);
+    } catch (err) {
+        console.error("Error conectando a DB:", err);
         res.status(500).json({ error: "Error interno del servidor" });
     }
 });

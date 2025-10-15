@@ -2,11 +2,12 @@
 import mongoose, { Connection } from "mongoose";
 
 let connection: Connection | null = null; // variable singleton
+let isConnected = false;
 
 const connectDB = async (): Promise<Connection> => {
-    if (connection && connection.readyState === 1) {
-        // Ya estamos conectados
-        return connection;
+    if (isConnected) {
+        console.log("✅ Usando conexión a MongoDB ya existente");
+        return mongoose.connection;;
     }
 
     const uri = process.env.DB_URL;
@@ -39,6 +40,7 @@ const connectDB = async (): Promise<Connection> => {
             console.error("❌ Error en la conexión de MongoDB:", err);
         });
 
+        isConnected = true;
         return connection;
     } catch (error: any) {
         console.error("❌ Error conectando a MongoDB:", error.message);
@@ -46,7 +48,5 @@ const connectDB = async (): Promise<Connection> => {
     }
 };
 
-// Función para obtener la conexión existente
-export const getConnection = (): Connection | null => connection;
 
 export default connectDB;
