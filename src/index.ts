@@ -20,36 +20,21 @@ import { RouteContacts } from "./Modules/Contacts/Routes/Contacats.routes";
 import { RouteBoutique } from "./Modules/Boutique/Routes/Boutique.routes";
 import { RouteUsers } from "./Modules/Users/Routes/User.routes";
 import { RouteStats } from "./Modules/Others/Routes/Stats.routes";
-import connectDB from "./mongo/connectDB";
+import connectDB, { getConnection } from "./mongo/connectDB";
 import serverlessHttp from "serverless-http";
 
 const app = express();
 app.use(cors());
 app.use(express.json());
 
-// app.get("/classes", async (req: any, res: any) => {
-//     const response = new Classes();
-//     try {
-//         const docRef = db.collection('Danzave').doc("classes");
-//         const docSnap = await docRef.get();
-
-//         if (!docSnap.exists) {
-//             response.setError("No se encontraron clases");
-//             return res.status(404).json({ error: response.setError("No se encontraron clases") });
-//         }
-
-//         // Obtén los datos de "classes" del documento
-//         const classesData = docSnap.data()?.classes;
-
-//         response.Items = classesData;
-//         return res.json(response);
-//     } catch (error) {
-//         console.error("Error obteniendo actividades:", error);
-//         response.setError("Error interno del servidor");
-//         return res.status(500).json({ error: response.setError("Error interno del servidor") });
-//     }
-// });
-connectDB();
+app.use(async (req, res, next) => {
+    if (!getConnection()?.readyState) {
+        console.log("Conectando a la base de datos...");
+        await connectDB();
+        console.log("Conexión a DB establecida");
+    }
+    next();
+});
 
 app.get("/api/company/setCompanyName", (req: any, res: any) => {
     const response = new ResponseMessages();
@@ -67,27 +52,22 @@ app.get("/api/company/setCompanyName", (req: any, res: any) => {
     return res.status(200).json(response);
 });
 
-connectDB().then(() => {
-    app.use("/api/classes", RouteClasses)
-    app.use("/api/activities", RouteActivities)
-    app.use("/api/calendar", RouteCalendar)
-    app.use("/api/assists", RouteAssists)
-    app.use("/api/teachers", RouteTeachers)
-    app.use("/api/students", RouteStudents)
-    app.use("/api/accounts", RouteAccounts)
-    app.use("/api/dashboard", RouteDashboard)
-    app.use("/api/contactsActivities", RouteContactsActivities)
-    app.use("/api/config", RouteConfig)
-    app.use("/api/drawers", RouteDrawer)
-    app.use("/api/contacts", RouteContacts)
-    app.use("/api/boutique", RouteBoutique)
-    app.use("/api/users", RouteUsers)
-    app.use("/api/stats", RouteStats)
+app.use("/api/classes", RouteClasses)
+app.use("/api/activities", RouteActivities)
+app.use("/api/calendar", RouteCalendar)
+app.use("/api/assists", RouteAssists)
+app.use("/api/teachers", RouteTeachers)
+app.use("/api/students", RouteStudents)
+app.use("/api/accounts", RouteAccounts)
+app.use("/api/dashboard", RouteDashboard)
+app.use("/api/contactsActivities", RouteContactsActivities)
+app.use("/api/config", RouteConfig)
+app.use("/api/drawers", RouteDrawer)
+app.use("/api/contacts", RouteContacts)
+app.use("/api/boutique", RouteBoutique)
+app.use("/api/users", RouteUsers)
+app.use("/api/stats", RouteStats)
 
-    // const PORT = process.env.PORT || 5000;
-    // app.listen(PORT, () => console.log(`✅ Servidor en http://localhost:${PORT}`));
 
-    module.exports = serverlessHttp(app);
-}).catch((err) => {
-    console.error("❌ Error al iniciar el servidor:", err);
-});
+export const handler = serverlessHttp(app);
+

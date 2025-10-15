@@ -1,42 +1,52 @@
 // src/mongo/connectDB.ts
-import mongoose from "mongoose";
+import mongoose, { Connection } from "mongoose";
 
-const connectDB = async (): Promise<void> => {
+let connection: Connection | null = null; // variable singleton
+
+const connectDB = async (): Promise<Connection> => {
+    if (connection && connection.readyState === 1) {
+        // Ya estamos conectados
+        return connection;
+    }
+
     const uri = process.env.DB_URL;
-
     if (!uri) {
         console.error("❌ No se encontró la variable de entorno DB_URL");
-        process.exit(1); // detiene el servidor si falta
+        process.exit(1);
     }
 
     try {
         mongoose.set("strictQuery", true);
 
         await mongoose.connect(uri, {
-            serverSelectionTimeoutMS: 15000, // espera más antes de dar timeout
-            socketTimeoutMS: 45000,          // mantiene el socket más tiempo abierto
-            autoIndex: true,                 // crea índices automáticamente
-            connectTimeoutMS: 15000,         // timeout de conexión inicial
+            serverSelectionTimeoutMS: 15000,
+            socketTimeoutMS: 45000,
+            autoIndex: true,
+            connectTimeoutMS: 15000,
         });
 
+        connection = mongoose.connection; // guardamos la conexión
         console.log("✅ Conectado correctamente a MongoDB");
+
+        // Eventos útiles para monitorear la conexión
+        connection.on("disconnected", () => {
+            console.warn("⚠️  Conexión con MongoDB perdida");
+        });
+        connection.on("reconnected", () => {
+            console.log("🔁 Reconectado a MongoDB");
+        });
+        connection.on("error", (err) => {
+            console.error("❌ Error en la conexión de MongoDB:", err);
+        });
+
+        return connection;
     } catch (error: any) {
         console.error("❌ Error conectando a MongoDB:", error.message);
-        process.exit(1); // termina la app si no puede conectar
+        process.exit(1);
     }
-
-    // Eventos útiles para monitorear la conexión
-    mongoose.connection.on("disconnected", () => {
-        console.warn("⚠️  Conexión con MongoDB perdida");
-    });
-
-    mongoose.connection.on("reconnected", () => {
-        console.log("🔁 Reconectado a MongoDB");
-    });
-
-    mongoose.connection.on("error", (err) => {
-        console.error("❌ Error en la conexión de MongoDB:", err);
-    });
 };
+
+// Función para obtener la conexión existente
+export const getConnection = (): Connection | null => connection;
 
 export default connectDB;
