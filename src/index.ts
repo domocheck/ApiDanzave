@@ -69,4 +69,4 @@ app.use("/api/users", RouteUsers);
 app.use("/api/stats", RouteStats);
 
 // Exportar la app como función serverless
-export const handler = serverless(app);
+export default app
