@@ -25,7 +25,7 @@ export const removeStudentFromClassService = async (classId: string, studentId: 
         // Ejecutar ambas promesas en paralelo
         const [removeStudent, removeClass] = await Promise.all([
             removeStudentToClassRepository(classId, studentId),
-            removeClassToStudentRepository(classId, studentId, type),
+            removeClassToStudentRepository(classId, studentId, type as 'students' | 'contacts'),
         ]);
 
         // Verificar errores en ambas respuestas

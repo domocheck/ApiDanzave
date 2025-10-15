@@ -1,7 +1,9 @@
 import mongoose, { Connection, Model } from "mongoose";
 import { IConfig } from "../../Modules/Config/Models/Config.models";
+import { v4 as uuidv4 } from 'uuid';
 
 const configSchema = new mongoose.Schema({
+    _id: { type: String, default: () => uuidv4() },
     categoriesProducts: [{
         id: String,
         name: String
@@ -70,7 +72,10 @@ const connections: Record<string, Connection> = {};
 export function getConfigModel(companyName: string): Model<IConfig> {
     if (!connections[companyName]) {
         connections[companyName] = mongoose.createConnection(
-            `${process.env.DB_URL!}${companyName}${process.env.OPTIONS_DB_URL}`
+            `${process.env.DB_URL!}${companyName}${process.env.OPTIONS_DB_URL}`, {
+            serverSelectionTimeoutMS: 15000,
+            socketTimeoutMS: 45000,
+        }
         );
     }
 

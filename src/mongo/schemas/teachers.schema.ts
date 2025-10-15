@@ -1,7 +1,9 @@
 import mongoose, { Connection, Model } from "mongoose";
 import { ITeachers } from "../../Modules/Teachers/Models/Teachers.models";
+import { v4 as uuidv4 } from 'uuid';
 
 const teacherSchema = new mongoose.Schema({
+    _id: { type: String, default: () => uuidv4() },
     birthday: String,
     classes: [String],
     color: String,
@@ -27,7 +29,10 @@ const connections: Record<string, Connection> = {};
 export function getTeachersModel(companyName: string): Model<ITeachers> {
     if (!connections[companyName]) {
         connections[companyName] = mongoose.createConnection(
-            `${process.env.DB_URL!}${companyName}${process.env.OPTIONS_DB_URL}`
+            `${process.env.DB_URL!}${companyName}${process.env.OPTIONS_DB_URL}`, {
+            serverSelectionTimeoutMS: 15000,
+            socketTimeoutMS: 45000,
+        }
         );
     }
 

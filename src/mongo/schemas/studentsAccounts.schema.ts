@@ -1,7 +1,9 @@
 import mongoose, { Connection, Model, mongo } from "mongoose";
 import { IAccount } from "../../Modules/Accounts/Models/Accounts.models";
+import { v4 as uuidv4 } from 'uuid';
 
 const studentsAccountsSchema = new mongoose.Schema({
+    _id: { type: String, default: () => uuidv4() },
     amount: Number,
     balance: Number,
     description: String,
@@ -27,7 +29,10 @@ const connections: Record<string, Connection> = {};
 export function getStudentsAccountsModel(companyName: string): Model<IAccount> {
     if (!connections[companyName]) {
         connections[companyName] = mongoose.createConnection(
-            `${process.env.DB_URL!}${companyName}${process.env.OPTIONS_DB_URL}`
+            `${process.env.DB_URL!}${companyName}${process.env.OPTIONS_DB_URL}`, {
+            serverSelectionTimeoutMS: 15000,
+            socketTimeoutMS: 45000,
+        }
         );
     }
 

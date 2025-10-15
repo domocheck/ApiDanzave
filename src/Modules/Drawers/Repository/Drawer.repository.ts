@@ -15,6 +15,8 @@ import { IPagedListExpense, PagedListExpenses, SearchPagedListExpenses } from ".
 import { IContacts } from "../../Contacts/Models/Contact.models";
 import { IStudents } from "../../Students/Models/Students.models";
 import { ITeachers } from "../../Teachers/Models/Teachers.models";
+import { getDrawerMovementsModel } from './../../../mongo/schemas/drawersMovements.schema';
+import { getDrawersModel } from "../../../mongo/schemas/drawers.schema";
 
 
 export const getMovementByTypeRepository = async (type: string): Promise<IMovement[]> => {
@@ -25,18 +27,14 @@ export const getMovementByTypeRepository = async (type: string): Promise<IMoveme
         if (!companyName) {
             throw new Error("Company name is not set");
         }
-        // Referencia al documento "classes" dentro de la colección de la compañía
-        const docRef = db.collection(companyName).doc("drawers").collection("movements")
-            .where("type", "==", type);
 
-        // Obtener el documento
-        const docSnap = await docRef.get();
+        const movementsModel = getDrawerMovementsModel(companyName);
 
-        if (docSnap.empty) {
+        const movements = await movementsModel.find({ type });
+
+        if (!movements || movements.length === 0) {
             return response;
         }
-
-        let movements: IMovement[] = docSnap.docs.map((doc) => doc.data() as IMovement) ?? [];
 
         return movements;
 
@@ -54,18 +52,14 @@ export const getMovementByPersonIdRepository = async (personId: string): Promise
         if (!companyName) {
             throw new Error("Company name is not set");
         }
-        // Referencia al documento "classes" dentro de la colección de la compañía
-        const docRef = db.collection(companyName).doc("drawers").collection("movements")
-            .where("idPerson", "==", personId);
 
-        // Obtener el documento
-        const docSnap = await docRef.get();
+        const movementsModel = getDrawerMovementsModel(companyName);
 
-        if (!docSnap.empty) {
+        const movements = await movementsModel.find({ personId });
+
+        if (!movements || movements.length === 0) {
             return response;
         }
-
-        let movements: IMovement[] = docSnap.docs.map((doc) => doc.data() as IMovement) ?? [];
 
         return movements;
 
@@ -83,21 +77,21 @@ export const getMovementByAccountIdRepository = async (accountId: string): Promi
         if (!companyName) {
             throw new Error("Company name is not set");
         }
-        // Referencia al documento "classes" dentro de la colección de la compañía
-        const docRef = db.collection(companyName).doc("drawers").collection("movements")
-            .where("idAccount", "==", accountId);
 
-        // Obtener el documento
-        const docSnap = await docRef.get();
+        const movementsModel = getDrawerMovementsModel(companyName);
 
-        if (!docSnap.empty) {
+        const movementsDoc = await movementsModel.find({ accountId });
+
+        if (!movementsDoc || movementsDoc.length === 0) {
             return response;
         }
 
-        let movements: IMovement[] = docSnap.docs.map((doc) => doc.data().map(async (m: IMovement) => ({
-            ...m,
-            isCashDrawerOpen: await checkIsValidMovement(m.id)
-        })) as IMovement) ?? [];
+        const movements: IMovement[] = await Promise.all(
+            movementsDoc.map(async (m: IMovement) => ({
+                ...m, // si es un documento Mongoose, mejor convertir a objeto plano
+                isCashDrawerOpen: await checkIsValidMovement(m.id)
+            }))
+        );
 
         return movements;
 
@@ -115,17 +109,16 @@ export const getMovementByCashDrawerIdRepository = async (drawerId: string): Pro
         if (!companyName) {
             throw new Error("Company name is not set");
         }
-        const docRef = db.collection(companyName).doc("drawers").collection("movements")
-            .where("drawerId", "==", drawerId);
 
-        // Obtener el documento
-        const docSnap = await docRef.get();
+        const movementsModel = getDrawerMovementsModel(companyName);
 
-        if (!docSnap.empty) {
+        const movements = await movementsModel.find({ drawerId });
+
+        if (!movements || movements.length === 0) {
             return response;
         }
 
-        return docSnap.docs.map((doc) => doc.data() as IMovement);
+        return movements;
 
     } catch (error) {
         console.error("Error obteniendo asistencias:", error);
@@ -141,18 +134,18 @@ export const checkIsValidMovement = async (movementId: string): Promise<boolean>
         if (!companyName) {
             throw new Error("Company name is not set");
         }
-        const docRef = db.collection(companyName).doc("drawers").collection("movements")
-            .where("id", "==", movementId);
 
-        const docSnap = await docRef.get();
+        const movementsModel = getDrawerMovementsModel(companyName);
 
-        if (docSnap.empty) {
+        const movement = await movementsModel.findOne({ id: movementId });
+
+        if (!movement) {
             return response;
         }
 
         let openCashDrawer = await getChasDrawerOpenRepository();
 
-        response = openCashDrawer && openCashDrawer.id === docSnap.docs.map((doc) => doc.data().cashDrawerId)[0];
+        response = openCashDrawer && openCashDrawer.id === movement.drawerId;
         return response;
 
     } catch (error: any) {
@@ -162,49 +155,51 @@ export const checkIsValidMovement = async (movementId: string): Promise<boolean>
 
 }
 
-export const editMovementRepository = async (editMovement: EditMovement): Promise<ResponseMessages> => {
+export const editMovementRepository = async (
+    editMovement: EditMovement
+): Promise<ResponseMessages> => {
     const response = new ResponseMessages();
 
     try {
         const companyName = getCompanyName();
         if (!companyName) throw new Error("Company name is not set");
 
-        const { drawerId, movementId, amount, balance, paymentsMethods } = editMovement;
+        const { movementId, amount, balance, paymentsMethods } = editMovement;
 
-        if (!drawerId || !movementId) {
+        if (!movementId) {
             response.setError("Faltan datos para identificar el movimiento.");
             return response;
         }
 
-        const movementRef = db
-            .collection(companyName)
-            .doc("drawers")
-            .collection("movements")
-            .doc(movementId);
+        const movementsModel = getDrawerMovementsModel(companyName);
 
-        const movementSnap = await movementRef.get();
+        // Construir los campos a actualizar dinámicamente
+        const updateFields: any = {};
+        if (amount !== undefined) updateFields.amount = amount;
+        if (balance !== undefined) updateFields.balance = balance;
+        if (paymentsMethods !== undefined) updateFields.paymentsMethods = paymentsMethods;
 
-        if (!movementSnap.exists) {
+        const updatedMovement = await movementsModel.findOneAndUpdate(
+            { id: movementId },
+            { $set: updateFields },
+            { new: true } // devuelve el documento actualizado
+        );
+
+        if (!updatedMovement) {
             response.setWarning("Movimiento no encontrado");
             return response;
         }
-
-        // Actualizamos solo los campos que cambiaron
-        await movementRef.update({
-            amount,
-            balance,
-            paymentsMethods
-        });
 
         response.setSuccess("Movimiento actualizado con éxito");
 
     } catch (error: any) {
         console.error("Error al editar movimiento:", error);
-        response.setError(error.message);
+        response.setError(error.message || "Error interno del servidor");
     }
 
     return response;
 };
+
 
 
 export const getChasDrawerOpenRepository = async (): Promise<IDrawer> => {
@@ -215,17 +210,15 @@ export const getChasDrawerOpenRepository = async (): Promise<IDrawer> => {
         if (!companyName) {
             throw new Error("Company name is not set");
         }
-        // Referencia al documento "classes" dentro de la colección de la compañía
-        const docRef = db.collection(companyName).doc("drawers").collection("drawers").where("status", "==", "open");
 
-        // Obtener el documento
-        const docSnap = await docRef.get();
+        const drawerModel = getDrawersModel(companyName);
 
-        if (docSnap.empty) {
+        const drawerOpen = await drawerModel.findOne({ status: "open" });
+
+        if (!drawerOpen) {
             return response;
         }
 
-        let drawerOpen: IDrawer = docSnap.docs.map((doc) => doc.data() as IDrawer)[0]
         response = drawerOpen
         return response;
 
@@ -235,28 +228,34 @@ export const getChasDrawerOpenRepository = async (): Promise<IDrawer> => {
     }
 }
 
-export const saveMovementRepository = async (movement: IMovement, cashDrawerId: string): Promise<ResponseMessages> => {
+export const saveMovementRepository = async (
+    movement: IMovement,
+    cashDrawerId: string
+): Promise<ResponseMessages> => {
     const response = new ResponseMessages();
 
     try {
         const companyName = getCompanyName();
         if (!companyName) throw new Error("Company name is not set");
 
-        // Referencia al nuevo documento del movimiento dentro de la subcolección
-        const movementRef = db
-            .collection(companyName)
-            .doc("drawers")
-            .collection("movements")
-            .doc(movement.id); // Asegúrate de que movement.id esté definido y sea único
+        const movementsModel = getDrawerMovementsModel(companyName);
 
-        movement.drawerId = cashDrawerId;
+        // Actualizar el drawerId del movimiento
+        const updatedMovement = await movementsModel.findOneAndUpdate(
+            { id: movement.id },
+            { $set: { drawerId: cashDrawerId } },
+            { new: true } // devuelve el documento actualizado
+        );
 
-        await movementRef.set(movement);
+        if (!updatedMovement) {
+            response.setError("Movimiento no encontrado");
+            return response;
+        }
 
         response.setSuccess("Movimiento guardado con éxito");
     } catch (error: any) {
         console.error("Error guardando movimiento:", error);
-        response.setError(error.message);
+        response.setError(error.message || "Error interno del servidor");
     }
 
     return response;
@@ -270,22 +269,16 @@ export const deleteMovementRepository = async (movementId: string, cashDrawerId:
         const companyName = getCompanyName();
         if (!companyName) throw new Error("Company name is not set");
 
-        const movementDocRef = db
-            .collection(companyName)
-            .doc("drawers")
-            .collection("movements")
-            .doc(movementId);
+        const movementsModel = getDrawerMovementsModel(companyName);
 
-        const docSnap = await movementDocRef.get();
-
-        if (!docSnap.exists) {
-            response.setWarning("Movimiento no encontrado");
+        const result = await movementsModel.findOneAndDelete({ id: movementId, drawerId: cashDrawerId });
+        if (!result) {
+            response.setError("Movimiento no encontrado");
             return response;
         }
 
-        await movementDocRef.delete();
-
         response.setSuccess("Movimiento eliminado con éxito");
+        return response;
     } catch (error: any) {
         console.error("Error eliminando movimiento:", error);
         response.setError(error.message);
@@ -302,134 +295,133 @@ export const getPagedListDrawersRepository = async (search: SearchPagedListDrawe
         const companyName = getCompanyName();
         if (!companyName) throw new Error("Company name is not set");
 
-        // Obtener drawer específico
-        const drawerDocRef = db.collection(companyName).doc("drawers").collection("drawers").doc(search.DrawerId);
-        const drawerDocSnap = await drawerDocRef.get();
+        const drawersModel = getDrawersModel(companyName);
+        const movementsModel = getDrawerMovementsModel(companyName);
 
-        if (!drawerDocSnap.exists) {
+        // Obtener drawer específico
+        const currentDrawer = await drawersModel.findOne({ id: search.DrawerId });
+        if (!currentDrawer) {
             response.setError("No se encontró la caja");
             return response;
         }
 
-        const currentDrawer: IDrawer = drawerDocSnap.data() as IDrawer;
+        // Filtros de movimientos
+        const filter: any = { drawerId: search.DrawerId };
+        if (search.Type && search.Type !== 'all') {
+            filter.type = search.Type === 'ingresses' ? { $in: ['income', 'receipt'] } : 'expense';
+        }
 
-        // Obtener movimientos desde la subcolección 'movements'
-        const movementsRef = db.collection(companyName).doc("drawers").collection("movements").where("drawerId", "==", search.DrawerId);
-        const movementsSnap = await movementsRef.get();
-        const movements = movementsSnap.docs.map((doc) => doc.data() as IMovement);
+        // Obtener límite y página
+        const limit = await getLimit();
+        const skip = (search.Page - 1) * limit;
 
-        let uniquePersonIds = Array.from(new Set(movements.map((m) => m.idPerson)));
-        let personsPromise = uniquePersonIds.map(async (id) => await getFullPerson(id));
-        let persons = await Promise.all(personsPromise);
+        // Contar total de movimientos
+        const totalMovements = await movementsModel.countDocuments(filter);
 
-        let drawerMovements: IPagedListMovements[] = await Promise.all(
-            movements.map((m) => {
-                const person = persons.find((p) => p?.id === m.idPerson)!;
-                return {
-                    id: m.id,
-                    status: (m.type === 'income' || m.type === 'receipt') ? 'Ingreso' : 'Egreso',
-                    description: m.description,
-                    fullName: `${person?.name} ${person?.lastName}`,
-                    date: m.date as string,
-                    amount: m.paymentsMethods?.reduce((acc, p) => acc + p.value, 0)
-                };
-            })
-        );
+        // Obtener movimientos paginados
+        const movements = await movementsModel
+            .find(filter)
+            .sort({ date: -1 }) // ordenar por fecha descendente
+            .skip(skip)
+            .limit(limit)
+            .lean(); // lean() devuelve objetos planos, más eficiente que documentos Mongoose
+
+        // Obtener personas asociadas
+        const uniquePersonIds = Array.from(new Set(movements.map(m => m.idPerson).filter(Boolean)));
+        const personsPromise = uniquePersonIds.map(id => getFullPerson(id!));
+        const persons = await Promise.all(personsPromise);
+
+        // Transformar movimientos
+        const drawerMovements: IPagedListMovements[] = movements.map(m => {
+            const person = persons.find(p => p?.id === m.idPerson);
+            return {
+                id: m.id,
+                status: (m.type === 'income' || m.type === 'receipt') ? 'Ingreso' : 'Egreso',
+                description: m.description,
+                fullName: person ? `${person.name} ${person.lastName}` : "",
+                date: m.date as string,
+                amount: m.paymentsMethods?.reduce((acc, p) => acc + p.value, 0) ?? 0
+            };
+        });
+
+        // Aplicar filtro por nombre si viene
+        const paginatedMovements = search.Name
+            ? drawerMovements.filter(m => m.fullName.toLowerCase().includes(search.Name.toLowerCase()))
+            : drawerMovements;
 
         const drawer: IPagedListDrawer = {
             DrawerStatus: currentDrawer.status,
             DrawerCloseDate: currentDrawer.dateClose as string || "",
             DrawerOpenDate: currentDrawer.dateOpen as string || "",
-            DrawerMovements: [] // Movimientos ya están separados ahora
+            DrawerMovements: movements
         };
 
-        // Aplicar filtros
-        if (search.Type && search.Type !== 'all') {
-            if (search.Type === 'ingresses') {
-                drawerMovements = drawerMovements.filter(m => m.status === 'Ingreso');
-            }
-            if (search.Type === 'egresses') {
-                drawerMovements = drawerMovements.filter(m => m.status === 'Egreso');
-            }
-        }
-
-        if (search.Name) {
-            drawerMovements = drawerMovements.filter(m =>
-                m.fullName.toLowerCase().includes(search.Name.toLowerCase())
-            );
-        }
-
-        // Paginación manual
-        const page = search.Page;
-        const limit = await getLimit();
-        const startIndex = (page - 1) * limit;
-        const endIndex = startIndex + limit;
-        const paginatedMovements = drawerMovements.slice(startIndex, endIndex);
-
         response.Items = paginatedMovements;
-        response.TotalItems = drawerMovements.length;
+        response.TotalItems = totalMovements;
         response.PageSize = limit;
         response.Drawer = drawer;
         response.PaymentsMethods = await getPaymentsMethodsFromConfigRepository();
 
         return response;
+
     } catch (error) {
-        console.error("Error obteniendo clases:", error);
+        console.error("Error obteniendo cajas:", error);
         response.setError("Error interno del servidor");
         return response;
     }
 };
 
-export const getPagedListHistoryDrawersRepository = async (search: SearchPagedListHistoryDrawers): Promise<PagedListHistoryDrawers> => {
+
+export const getPagedListHistoryDrawersRepository = async (
+    search: SearchPagedListHistoryDrawers
+): Promise<PagedListHistoryDrawers> => {
     const response = new PagedListHistoryDrawers();
 
     try {
         const companyName = getCompanyName();
         if (!companyName) throw new Error("Company name is not set");
 
-        const docRef = db.collection(companyName).doc("drawers").collection("drawers");
-        const docSnap = await docRef.get();
+        const drawersModel = getDrawersModel(companyName);
 
-        if (docSnap.empty) {
-            response.setWarning("No se encontraron estudiantes");
-            return response;
-        }
-
-        let drawersData: IDrawer[] = docSnap.docs.map((doc) => doc.data() as IDrawer);
-
-        if (!Array.isArray(drawersData)) {
-            response.setWarning("No se encontraron cajas válidas");
-            return response;
-        }
-
-        // Filtros por estado
+        // Filtros iniciales
+        const filter: any = {};
         if (search.Status && search.Status !== 'all') {
-            drawersData = drawersData.filter(d => d.status === search.Status);
+            filter.status = search.Status;
         }
-
-        // Filtros por fecha
         if (search.StartDate && search.EndDate) {
-            drawersData = drawersData.filter(d => {
-                const openDateDrawer = normalizeDate(formatDateToDate(d.dateOpen as string));
-                return openDateDrawer >= search.StartDate! && openDateDrawer <= search.EndDate!;
-            });
+            filter.dateOpen = { $gte: search.StartDate, $lte: search.EndDate };
         }
 
-        // Obtener info de cada drawer (asincrónicamente)
+        // Paginación
+        const limit = await getLimit();
+        const skip = (search.Page - 1) * limit;
+
+        // Contar total de drawers que cumplen filtro
+        const totalDrawers = await drawersModel.countDocuments(filter);
+
+        // Obtener drawers paginados
+        const drawersData = await drawersModel
+            .find(filter)
+            .sort({ dateOpen: -1 }) // ordenar por fecha de apertura descendente
+            .skip(skip)
+            .limit(limit)
+            .lean(); // lean() devuelve objetos planos
+
+        // Obtener info de movimientos de cada drawer
         const historyData: IPagedListHistoryDrawer[] = await Promise.all(
             drawersData.map(async (d) => {
                 const movements = await getMovementByCashDrawerIdRepository(d.id);
 
                 const income = movements
                     ?.filter(m => m.type === 'receipt' || m.type === 'income')
-                    ?.reduce((acc, p) => acc + p.paymentsMethods?.reduce((acc, p) => acc + p.value, 0), 0) || 0;
+                    ?.reduce((acc, p) => acc + (p.paymentsMethods?.reduce((a, pm) => a + pm.value, 0) || 0), 0) || 0;
 
                 const outcome = movements
                     ?.filter(m => m.type !== 'receipt' && m.type !== 'income')
-                    ?.reduce((acc, p) => acc + p.paymentsMethods?.reduce((acc, p) => acc + p.value, 0), 0) || 0;
+                    ?.reduce((acc, p) => acc + (p.paymentsMethods?.reduce((a, pm) => a + pm.value, 0) || 0), 0) || 0;
 
                 return {
-                    id: d.id,
+                    id: d.id.toString(),
                     status: d.status,
                     openDate: d.dateOpen as string,
                     closeDate: d.dateClose as string,
@@ -440,90 +432,100 @@ export const getPagedListHistoryDrawersRepository = async (search: SearchPagedLi
             })
         );
 
-        // Paginación después de Promise.all
-        const page = search.Page;
-        const limit = await getLimit();
-        const startIndex = (page - 1) * limit;
-        const endIndex = startIndex + limit;
-
-        response.Items = historyData.slice(startIndex, endIndex);
-        response.TotalItems = historyData.length;
+        response.Items = historyData;
+        response.TotalItems = totalDrawers;
         response.PageSize = limit;
 
         return response;
 
-    } catch (error) {
-        console.error("Error obteniendo clases:", error);
+    } catch (error: any) {
+        console.error("Error obteniendo historial de cajas:", error);
         response.setError("Error interno del servidor");
         return response;
     }
 };
 
-export const getPagedListExpensesRepository = async (search: SearchPagedListExpenses): Promise<PagedListExpenses> => {
+export const getPagedListExpensesRepository = async (
+    search: SearchPagedListExpenses
+): Promise<PagedListExpenses> => {
     const response = new PagedListExpenses();
+
     try {
         const companyName = getCompanyName();
+        if (!companyName) throw new Error("Company name is not set");
 
-        if (!companyName) {
-            throw new Error("Company name is not set");
-        }
+        const movementsModel = getDrawerMovementsModel(companyName);
 
-        let expensesData: IMovement[] = await getMovementByTypeRepository('expense');
+        // Filtros iniciales
+        const filter: any = { type: 'expense' };
 
-        if (!Array.isArray(expensesData)) {
-            response.setError("No se encontraron gastos válidos");
-            return response;
-        }
         if (search.Type && search.Type !== 'all') {
-            expensesData = expensesData.filter(d => d.description.toLowerCase() === search.Type.toLowerCase());
+            filter.description = new RegExp(`^${search.Type}$`, 'i'); // case-insensitive exact match
+        }
+        if (search.StartDate && search.EndDate) {
+            filter.date = { $gte: search.StartDate, $lte: search.EndDate };
         }
 
-        if (search.StartDate && search.EndDate) {
-            expensesData = expensesData.filter(d => {
-                const expenseDate = normalizeDate(formatDateToDate(d.date as string));
-                return expenseDate >= search.StartDate! && expenseDate <= search.EndDate!;
-            })
-        }
-        const paymentsConfig = await getPaymentsMethodsFromConfigRepository();
-        const page = search.Page;
+        // Paginación
         const limit = await getLimit();
-        const startIndex = (page - 1) * limit;
-        const endIndex = startIndex + limit;
+        const skip = (search.Page - 1) * limit;
+
+        // Contar total de gastos
+        const totalExpenses = await movementsModel.countDocuments(filter);
+
+        // Obtener movimientos paginados
+        const expensesData: IMovement[] = await movementsModel
+            .find(filter)
+            .sort({ date: -1 })
+            .skip(skip)
+            .limit(limit)
+            .lean();
+
+        const paymentsConfig = await getPaymentsMethodsFromConfigRepository();
 
         const paginatedExpenses: IPagedListExpense[] = expensesData.map(d => {
+            const total = d.paymentsMethods?.reduce((acc, p) => acc + p.value, 0) || 0;
+            const payments = d.paymentsMethods?.map(p => ({
+                id: p.idPayment,
+                name: paymentsConfig.find(pc => pc.id === p.idPayment)?.name ?? "",
+                value: p.value
+            })) || [];
+
             return {
                 id: d.id,
                 date: d.date as string,
                 description: d.description,
-                total: d.paymentsMethods.reduce((acc, p) => acc + p.value, 0),
-                payments: d.paymentsMethods.map(p => {
-                    return {
-                        id: p.idPayment,
-                        name: paymentsConfig.find(pc => pc.id === p.idPayment)?.name ?? "",
-                        value: p.value
-                    }
-                })
-            }
-        }).slice(startIndex, endIndex);
+                total,
+                payments
+            };
+        });
+
+        // Opciones de filtrado únicas
+        const uniqueDescriptions = await movementsModel.distinct('description', filter);
+        const filteringOptions = [{ id: 'all', name: 'Todos' }, ...uniqueDescriptions.map(d => ({ id: d, name: d }))];
+
+        // Total de todos los movimientos que cumplen filtro
+        const totalAmountAgg = await movementsModel.aggregate([
+            { $match: filter },
+            { $unwind: '$paymentsMethods' },
+            { $group: { _id: null, total: { $sum: '$paymentsMethods.value' } } }
+        ]);
 
         response.Items = paginatedExpenses;
-        response.TotalItems = expensesData.length;
+        response.TotalItems = totalExpenses;
         response.PageSize = limit;
-        response.Total = expensesData.reduce((acc, p) => acc + p.paymentsMethods.reduce((acc, p) => acc + p.value, 0), 0);
-        response.FilteringOptions = expensesData.map(d => {
-            return {
-                id: d.description,
-                name: d.description
-            }
-        }).filter((v, i, a) => a.findIndex(t => t.id === v.id) === i);
-        response.FilteringOptions.unshift({ id: 'all', name: 'Todos' });
+        response.Total = totalAmountAgg[0]?.total || 0;
+        response.FilteringOptions = filteringOptions;
+
         return response;
-    } catch (error) {
-        console.error("Error obteniendo clases:", error);
+
+    } catch (error: any) {
+        console.error("Error obteniendo gastos:", error);
         response.setError("Error interno del servidor");
         return response;
     }
-}
+};
+
 
 const getFullName = async (personId: string | null): Promise<string> => {
     if (!personId) return "";
@@ -547,10 +549,10 @@ export const getFullPerson = async (personId: string | null): Promise<IStudents 
     let person;
     try {
         person = await getStudentByIdRepository(personId);
-        if (!person) {
+        if (!person || Object.keys(person).length === 0) {
             person = await getTeacherById(personId);
         }
-        if (!person) {
+        if (!person || Object.keys(person).length === 0) {
             person = await getContactByIdRepository(personId);
         }
     } catch (error) {
@@ -591,33 +593,33 @@ export const getExpensesTypeRepository = async (): Promise<IExpense[]> => {
 }
 
 export const closeDrawerRepository = async (drawerId: string): Promise<ResponseMessages> => {
-    let response = new ResponseMessages();
+    const response = new ResponseMessages();
+
     try {
         const companyName = getCompanyName();
         if (!companyName) throw new Error("Company name is not set");
 
-        const querySnapshot = await db
-            .collection(companyName)
-            .doc("drawers")
-            .collection("drawers")
-            .where("id", "==", drawerId)
-            .get();
+        const drawerModel = getDrawersModel(companyName);
 
-        if (querySnapshot.empty) {
-            response.setError("Caja no encontrada");
+        const updatedDrawer = await drawerModel.findOneAndUpdate(
+            { id: drawerId }, // busca por tu campo lógico
+            {
+                $set: {
+                    status: "closed",
+                    dateClose: format(new Date(), "full"),
+                },
+            },
+            { new: true } // devuelve el documento actualizado
+        );
+
+        if (!updatedDrawer) {
+            response.setError("No se encontró la caja a cerrar");
             return response;
         }
 
-        const drawerDoc = querySnapshot.docs[0]; // obtenemos el documento
-        const drawerRef = drawerDoc.ref;
-
-        await drawerRef.update({
-            status: 'closed',
-            dateClose: format(new Date(), 'full')
-        });
-
         response.setSuccess("Caja cerrada con éxito");
     } catch (error: any) {
+        console.error("Error cerrando caja:", error);
         response.setError(error.message);
     }
 
@@ -625,25 +627,29 @@ export const closeDrawerRepository = async (drawerId: string): Promise<ResponseM
 };
 
 
+
 export const openDrawerRepository = async (): Promise<string> => {
     try {
         const companyName = getCompanyName();
         if (!companyName) throw new Error("Company name is not set");
 
-        const drawersCollection = db.collection(companyName).doc("drawers").collection("drawers");
+        const drawersModel = getDrawersModel(companyName);
 
-        const newDrawer: IDrawer = {
+        const newDrawer = new drawersModel({
             id: uuidv4(),
             dateOpen: format(new Date(), { date: 'full', time: 'short' }),
             dateClose: null,
             status: 'open',
             movements: [],
-        };
+        });
 
-        await drawersCollection.doc(newDrawer.id).set(newDrawer);
+        newDrawer._id = newDrawer.id;
 
-        return newDrawer.id;
+        await newDrawer.save();
+
+        return newDrawer.id; // o newDrawer.id si tu esquema tiene id
     } catch (error: any) {
+        console.error("Error abriendo caja:", error);
         throw new Error(error.message);
     }
 };

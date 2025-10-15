@@ -119,11 +119,11 @@ export const generatePresenceService = async (classId: string, assistId: string,
     if (classe.idTeacher) {
         const teacher = await getTeacherById(classe.idTeacher);
         presences = [{
-            id: teacher.id,
-            name: `MAESTRA - ${teacher.name} ${teacher.lastName}`,
-            presence: checkPresence(teacher.id, assist),
+            id: teacher!.id,
+            name: `MAESTRA - ${teacher!.name} ${teacher!.lastName}`,
+            presence: checkPresence(teacher!.id, assist),
             type: 'teachers',
-            color: teacher.color,
+            color: teacher!.color,
         }, ...presences];
     }
 
@@ -131,9 +131,9 @@ export const generatePresenceService = async (classId: string, assistId: string,
         for (let id of assist.recovers) {
             const student = await getStudentByIdRepository(id);
             presences = [...presences, {
-                id: student.id,
-                name: `${student.name} ${student.lastName} - Recupera`,
-                presence: checkPresence(student.id, assist),
+                id: student!.id,
+                name: `${student!.name} ${student!.lastName} - Recupera`,
+                presence: checkPresence(student!.id, assist),
                 type: 'students',
             }]
         }

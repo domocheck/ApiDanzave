@@ -8,389 +8,361 @@ import { PagedListTeachers, SearchPagedListTeachers } from "../Models/Teachers-p
 import { ITeachers, ColorsTeachers, TeachersActive, Substitutes } from "../Models/Teachers.models";
 import { removeTeacherToClassRepository } from "../../Classes/Repository/Classes.repository";
 import { IClasses } from "../../Classes/Models/classes.models";
+import { getTeachersModel } from "../../../mongo/schemas/teachers.schema";
+import { getClassesModel } from "../../../mongo/schemas/classes.schema";
 
 export const getColorsTeachersRepository = async (): Promise<ColorsTeachers[]> => {
-    let response = [] as ColorsTeachers[];
+    let response: ColorsTeachers[] = [];
+
     try {
         const companyName = getCompanyName();
+        if (!companyName) throw new Error("Company name is not set");
 
-        if (!companyName) {
-            throw new Error("Company name is not set");
-        }
+        const TeachersModel = getTeachersModel(companyName);
 
-        // Referencia al documento "classes" dentro de la colección de la compañía
-        const docRef = db.collection(companyName).doc("teachers").collection("teachers").where("status", "==", "activo");
+        // Buscar todos los profesores activos
+        const teachers: ITeachers[] = await TeachersModel.find({ status: "activo" }).lean();
 
-        // Obtener el documento
-        const docSnap = await docRef.get();
-
-        if (docSnap.empty) {
+        if (!teachers || teachers.length === 0) {
             return response;
         }
 
-        let teachers: ITeachers[] = docSnap.docs.map(doc => doc.data() as ITeachers);
+        response = teachers.map(t => ({
+            Id: t.id,
+            Color: t.color || null
+        }));
 
-        if (!Array.isArray(teachers)) {
-            return response;
-        }
-        const colorsTeachers = teachers.map(t => {
-            return {
-                Id: t.id,
-                Color: t.color || null
-            }
-        });
-        response = colorsTeachers;
         return response;
-    } catch (error) {
+    } catch (error: any) {
         console.error("Error obteniendo colores:", error);
         return response;
     }
-}
+};
+
 
 export const getFullNameTeacherById = async (id: string): Promise<string> => {
     let response = "";
+
     try {
         const companyName = getCompanyName();
         if (!companyName) throw new Error("Company name is not set");
         if (!id) return "";
 
-        const docRef = db.collection(companyName).doc("teachers").collection("teachers").doc(id);
-        const docSnap = await docRef.get();
+        const TeachersModel = getTeachersModel(companyName);
 
-        if (!docSnap.exists) {
-            return "";
+        // Buscar el profesor por id
+        const teacher = await TeachersModel.findOne({ id }).lean();
+
+        if (teacher && teacher.name && teacher.lastName) {
+            response = `${teacher.name} ${teacher.lastName}`;
         }
 
-        const teacher = docSnap.data() as ITeachers
-
-        if (teacher) {
-            response = teacher.name + " " + teacher.lastName;
-        }
         return response;
-    } catch (error) {
-        console.error("Error obteniendo asistencias:", error);
+    } catch (error: any) {
+        console.error("Error obteniendo docente:", error);
         throw new Error("Error interno del servidor");
     }
-}
+};
+
 
 export const getTeacherById = async (id: string): Promise<ITeachers> => {
     let teacher = {} as ITeachers;
+
     try {
         const companyName = getCompanyName();
+        if (!companyName) throw new Error("Company name is not set");
+        if (!id) return teacher;
 
-        if (!companyName) {
-            throw new Error("Company name is not set");
-        }
+        const TeachersModel = getTeachersModel(companyName);
 
-        // Referencia al documento "classes" dentro de la colección de la compañía
-        const docRef = db.collection(companyName).doc("teachers").collection("teachers").doc(id);
+        // Buscar el docente por id
+        const foundTeacher = await TeachersModel.findOne({ id }).lean();
 
-        // Obtener el documento
-        const docSnap = await docRef.get();
-
-        if (!docSnap.exists) {
+        if (!foundTeacher) {
             return teacher;
         }
 
-        teacher = docSnap.data() as ITeachers
-
+        teacher = foundTeacher;
         return teacher;
-    } catch (error) {
-        console.error("Error obteniendo colores:", error);
-        throw new Error("No se encontraron docentes")
+    } catch (error: any) {
+        console.error("Error obteniendo docente:", error);
+        throw new Error("No se encontraron docentes");
     }
-}
+};
+
 
 export const getTeachersActives = async (): Promise<TeachersActive[]> => {
-    let teachersActives = [] as TeachersActive[];
+    let teachersActives: TeachersActive[] = [];
+
     try {
         const companyName = getCompanyName();
         if (!companyName) throw new Error("Company name is not set");
 
-        const docRef = db.collection(companyName).doc("teachers").collection("teachers").where("status", "==", "activo");
-        const docSnap = await docRef.get();
+        const TeachersModel = getTeachersModel(companyName);
 
-        if (docSnap.empty) {
-            throw new Error("No se encontro");
+        // Buscar todos los docentes activos
+        const teachers = await TeachersModel.find({ status: "activo" }).lean();
+
+        if (!teachers || teachers.length === 0) {
+            throw new Error("No se encontraron docentes activos");
         }
 
-        const teachers = docSnap.docs.map(doc => doc.data() as ITeachers);
+        teachersActives = teachers.map((teacher: ITeachers) => ({
+            id: teacher.id,
+            name: teacher.name,
+            lastName: teacher.lastName,
+            displayName: `${teacher.name} ${teacher.lastName}`,
+            createdDate: teacher.createDate!,
+        }));
 
-        teachersActives = teachers.map((teacher: ITeachers) => {
-            return {
-                id: teacher.id,
-                name: teacher.name,
-                lastName: teacher.lastName,
-                displayName: teacher.name + ' ' + teacher.lastName,
-                createdDate: teacher.createDate!,
-            };
-        });
-
-        return teachersActives.sort((a, b) => a.name.localeCompare(b.name))
-    } catch (error) {
-        console.error("Error obteniendo maetros:", error);
+        return teachersActives.sort((a, b) => a.name.localeCompare(b.name));
+    } catch (error: any) {
+        console.error("Error obteniendo docentes:", error);
         throw new Error("Error interno del servidor");
     }
-}
+};
+
 
 export const getTeachersRepository = async (): Promise<ITeachers[]> => {
     try {
         const companyName = getCompanyName();
         if (!companyName) throw new Error("Company name is not set");
 
-        const docRef = db.collection(companyName).doc("teachers").collection("teachers");
-        const docSnap = await docRef.get();
+        const TeachersModel = getTeachersModel(companyName);
 
-        if (docSnap.empty) {
-            throw new Error("No se encontro");
+        // Obtener todos los docentes
+        const teachers = await TeachersModel.find().lean();
+
+        if (!teachers || teachers.length === 0) {
+            throw new Error("No se encontraron docentes");
         }
 
-        return docSnap.docs.map(doc => doc.data() as ITeachers);
-    } catch (error) {
-        console.error("Error obteniendo maetros:", error);
+        return teachers as ITeachers[];
+    } catch (error: any) {
+        console.error("Error obteniendo docentes:", error);
         throw new Error("Error interno del servidor");
     }
-}
+};
+
 
 export const getSubstitutesRepository = async (teacherId: string): Promise<Substitutes> => {
-    let response = new Substitutes();
+    const response = new Substitutes();
     try {
         const companyName = getCompanyName();
+        if (!companyName) throw new Error("Company name is not set");
 
-        if (!companyName) {
-            throw new Error("Company name is not set");
-        }
+        const TeachersModel = getTeachersModel(companyName);
 
-        // Referencia al documento "classes" dentro de la colección de la compañía
-        const docRef = db.collection(companyName).doc("teachers").collection("teachers").where("id", '!=', teacherId);
+        // Obtener todos los docentes excepto el indicado
+        const substitutesData = await TeachersModel.find({ id: { $ne: teacherId } }).lean();
 
-        // Obtener el documento
-        const docSnap = await docRef.get();
-
-        if (docSnap.empty) {
+        if (!substitutesData || substitutesData.length === 0) {
+            response.setWarning("No se encontraron docentes");
             return response;
         }
 
-        let substitutes: ITeachers[] = docSnap.docs.map(doc => doc.data() as ITeachers);
+        response.Items = substitutesData.map(t => ({
+            id: t.id,
+            name: `${t.name} ${t.lastName}`
+        }));
 
-        if (!substitutes) {
-            response.setWarning("No se encontraron docentes");
-        }
-        response.Items = substitutes.map(t => {
-            return {
-                name: `${t.name} ${t.lastName}`,
-                id: t.id
-            }
-        })
         return response;
-    } catch (error) {
-        console.error("Error obteniendo colores:", error);
-        throw new Error("No se encontraron docentes")
+    } catch (error: any) {
+        console.error("Error obteniendo docentes:", error);
+        throw new Error("No se encontraron docentes");
     }
-}
+};
+
 
 export const getTeacherWhitMoreClassesRepository = async (): Promise<[string, number]> => {
-    let teacher = {} as ITeachers;
     try {
         const companyName = getCompanyName();
+        if (!companyName) throw new Error("Company name is not set");
 
-        if (!companyName) {
-            throw new Error("Company name is not set");
-        }
+        const TeachersModel = getTeachersModel(companyName);
 
-        // Referencia al documento "classes" dentro de la colección de la compañía
-        const docRef = db.collection(companyName).doc("teachers").collection("teachers").where("status", "==", "activo");
+        // Obtener todos los docentes activos con al menos una clase
+        const teachers = await TeachersModel.find({ status: "activo", classes: { $exists: true, $ne: [] } }).lean();
 
-        // Obtener el documento
-        const docSnap = await docRef.get();
-
-        if (docSnap.empty) {
-            throw new Error("No se encontraron docentes")
-        }
-
-        const teachers: ITeachers[] = docSnap.docs.map(doc => doc.data() as ITeachers).filter((t: ITeachers) => t.classes.length > 0);
-
-        if (!teachers) {
+        if (!teachers || teachers.length === 0) {
             return ['', 0];
         }
-        teacher = teachers.sort((a, b) => b.classes.length - a.classes.length)[0];
-        return [`${teacher?.name} ${teacher?.lastName}`, teacher?.classes?.length];
-    } catch (error) {
-        console.error("Error obteniendo colores:", error);
-        throw new Error("No se encontraron docentes")
+
+        // Ordenar por cantidad de clases y tomar el primero
+        const teacher = teachers.sort((a, b) => (b.classes?.length || 0) - (a.classes?.length || 0))[0];
+
+        return [`${teacher.name} ${teacher.lastName}`, teacher.classes?.length || 0];
+    } catch (error: any) {
+        console.error("Error obteniendo docentes:", error);
+        throw new Error("No se encontraron docentes");
     }
-}
+};
+
 
 export const getPagedListTeachersRepository = async (search: SearchPagedListTeachers): Promise<PagedListTeachers> => {
     const response = new PagedListTeachers();
+
     try {
         const companyName = getCompanyName();
+        if (!companyName) throw new Error("Company name is not set");
 
-        if (!companyName) {
-            throw new Error("Company name is not set");
-        }
-        let docRef;
+        const TeachersModel = getTeachersModel(companyName);
+
+        // Construir filtro según status
+        const filter: any = {};
         if (search.Status && search.Status !== 'all') {
-            docRef = db.collection(companyName).doc("teachers").collection("teachers").where("status", "==", search.Status);
-        } else {
-            docRef = db.collection(companyName).doc("teachers").collection("teachers")
+            filter.status = search.Status;
         }
 
-        const docSnap = await docRef.get();
+        // Obtener todos los docentes que cumplen el filtro
+        let teachersData: ITeachers[] = await TeachersModel.find(filter).lean();
 
-        if (docSnap.empty) {
+        if (!teachersData || teachersData.length === 0) {
             response.setWarning("No se encontraron actividades");
             return response;
         }
 
-        let teachersData = docSnap.docs.map((doc) => doc.data() as ITeachers);
-
-        if (!Array.isArray(teachersData)) {
-            response.setError("No se encontraron clases válidas");
-            return response;
-        }
-
+        // Filtrar por nombre si aplica
         if (search.Name) {
-            teachersData = teachersData.filter((item: ITeachers) =>
-                item.name.toLowerCase().includes(search.Name.toLowerCase()) ||
-                item.lastName.toLowerCase().includes(search.Name.toLowerCase())
+            const nameLower = search.Name.toLowerCase();
+            teachersData = teachersData.filter(t =>
+                t.name.toLowerCase().includes(nameLower) ||
+                t.lastName.toLowerCase().includes(nameLower)
             );
         }
+
+        // Paginación
         const page = search.Page;
         const limit = await getLimit();
         const startIndex = (page - 1) * limit;
         const endIndex = startIndex + limit;
-
         const paginatedTeachers = teachersData.slice(startIndex, endIndex);
 
-        response.Items = paginatedTeachers.map((s: ITeachers) => {
-            return {
-                id: s.id,
-                status: s.status,
-                fullName: `${s.name} ${s.lastName}`,
-                numberOfClasses: s.classes?.length || 0
-            }
-        })
+        response.Items = paginatedTeachers.map(t => ({
+            id: t.id,
+            status: t.status,
+            fullName: `${t.name} ${t.lastName}`,
+            numberOfClasses: t.classes?.length || 0
+        }));
+
         response.TotalItems = teachersData.length;
         response.PageSize = limit;
+
         return response;
-    } catch (error) {
-        console.error("Error obteniendo clases:", error);
+    } catch (error: any) {
+        console.error("Error obteniendo docentes:", error);
         response.setError("Error interno del servidor");
         return response;
     }
-}
+};
+
 
 export const changeStatusTeacherRepository = async (changeStatus: ChangeStatusPerson): Promise<ResponseMessages> => {
-    let response = new ResponseMessages();
+    const response = new ResponseMessages();
+
     try {
         const companyName = getCompanyName();
         if (!companyName) throw new Error("Company name is not set");
 
-        // Referencia al doc individual del estudiante
-        const studentDocRef = db
-            .collection(companyName)
-            .doc("teachers")
-            .collection("teachers")
-            .doc(changeStatus.id);
+        const TeachersModel = getTeachersModel(companyName);
 
-        const studentDoc = await studentDocRef.get();
+        // Obtener el docente
+        const teacher = await TeachersModel.findOne({ id: changeStatus.id }).lean();
 
-        if (!studentDoc.exists) {
+        if (!teacher) {
+            response.setWarning("No se encontró el docente");
             return response;
         }
 
-        const teacher = studentDoc.data() as ITeachers;
-
         // Actualizamos estado
-        teacher.status = changeStatus.newStatus;
+        const updatedFields: Partial<ITeachers> = { status: changeStatus.newStatus };
 
         if (changeStatus.newStatus === 'inactivo') {
             if (teacher.classes && teacher.classes.length > 0) {
-                for (let classe of teacher.classes) {
+                for (const classe of teacher.classes) {
                     await removeTeacherToClassRepository(classe, changeStatus.id);
                 }
             }
-            teacher.classes = [];
-            teacher.inactiveDate = format(new Date(), 'full');
+            updatedFields.classes = [];
+            updatedFields.inactiveDate = format(new Date(), 'full');
         }
 
-        teacher.idReason = changeStatus.reasonId;
-        teacher.observationsInactive = changeStatus.observation;
-        // Actualizar solo el documento individual del estudiante
-        await studentDocRef.update({
-            status: teacher.status,
-            classes: teacher.classes,
-            inactiveDate: teacher.inactiveDate,
-            idReason: teacher.idReason,
-            observationsInactive: teacher.observationsInactive,
-        });
+        updatedFields.idReason = changeStatus.reasonId;
+        updatedFields.observationsInactive = changeStatus.observation;
 
-        response.setSuccess("Maestra actualizada correctamente");
+        // Actualizar solo los campos modificados
+        await TeachersModel.updateOne({ id: changeStatus.id }, { $set: updatedFields });
 
+        response.setSuccess("Docente actualizado correctamente");
     } catch (error: any) {
-        response.setError(error.message);
+        console.error("Error cambiando estado del docente:", error);
+        response.setError(error.message || "Error interno del servidor");
     }
 
     return response;
-}
+};
 
-export const replaceTeacherRepository = async (teacherId: string, newTeacherId: string, classId: string): Promise<ResponseMessages> => {
-    let response = new ResponseMessages();
+
+export const replaceTeacherRepository = async (
+    teacherId: string,
+    newTeacherId: string,
+    classId: string
+): Promise<ResponseMessages> => {
+    const response = new ResponseMessages();
+
     try {
         const companyName = getCompanyName();
         if (!companyName) throw new Error("Company name is not set");
 
-        const teacherOldRef = db.collection(companyName).doc("teachers").collection("teachers").doc(teacherId);
-        const classesRef = db.collection(companyName).doc("classes").collection("classes").doc(classId);
-        const teacherOldSnap = await teacherOldRef.get();
-        const classesSnap = await classesRef.get();
+        const TeachersModel = getTeachersModel(companyName);
+        const ClassesModel = getClassesModel(companyName);
 
-        if (!teacherOldSnap.exists || !classesSnap.exists) {
-            throw new Error("No se encontro el nombre");
-        }
-
-
-        const teacherOld: ITeachers = teacherOldSnap.data() as ITeachers;
-        const currentClass: IClasses = classesSnap.data() as IClasses;
+        // Obtener docente antiguo y clase
+        const teacherOld = await TeachersModel.findOne({ id: teacherId }).lean();
+        const currentClass = await ClassesModel.findOne({ id: classId }).lean();
 
         if (!teacherOld || !currentClass) {
-            throw new Error("No se encontro la maestra o la clase");
+            throw new Error("No se encontró la maestra o la clase");
         }
 
-        if (currentClass) currentClass!.idTeacher = newTeacherId;
-        if (teacherOld) teacherOld!.classes!.splice(teacherOld!.classes!.indexOf(classId), 1);
-        await teacherOldRef.update({ classes: teacherOld!.classes });
-        await classesRef.update({ idTeacher: currentClass!.idTeacher });
+        // Actualizar clase con nuevo docente
+        await ClassesModel.updateOne({ id: classId }, { $set: { idTeacher: newTeacherId } });
 
-        response.setSuccess("Maestra actualizada correctamente");
+        // Quitar clase del docente antiguo
+        const updatedClasses = teacherOld.classes?.filter(c => c !== classId) || [];
+        await TeachersModel.updateOne({ id: teacherId }, { $set: { classes: updatedClasses } });
 
+        response.setSuccess("Docente reemplazado correctamente");
     } catch (error: any) {
-        response.setError(error.message);
+        console.error("Error reemplazando docente:", error);
+        response.setError(error.message || "Error interno del servidor");
     }
 
     return response;
-}
+};
+
 
 export const saveTeacherRepository = async (teacher: ITeachers): Promise<ResponseMessages> => {
     const response = new ResponseMessages();
+
     try {
         const companyName = getCompanyName();
         if (!companyName) throw new Error("Company name is not set");
 
-        // Referencia al nuevo documento del movimiento dentro de la subcolección
-        const teacherRef = db
-            .collection(companyName)
-            .doc("teachers")
-            .collection("teachers")
-            .doc(teacher.id); // Asegúrate de que movement.id esté definido y sea único
+        const TeachersModel = getTeachersModel(companyName);
 
-        await teacherRef.set(teacher);
+        // Guardar o actualizar el docente según si existe o no
+        await TeachersModel.updateOne(
+            { id: teacher.id },
+            { $set: teacher },
+            { upsert: true }
+        );
 
-        response.setSuccess("estudiante guardado con éxito");
+        response.setSuccess("Docente guardado con éxito");
     } catch (error: any) {
-        console.error("Error guardando estudiante:", error);
-        response.setError(error.message);
+        console.error("Error guardando docente:", error);
+        response.setError(error.message || "Error interno del servidor");
     }
-    return response
-}
+
+    return response;
+};

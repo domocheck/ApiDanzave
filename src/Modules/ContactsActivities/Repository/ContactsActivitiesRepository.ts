@@ -8,293 +8,290 @@ import { ResponseMessages } from "../../Others/Models/ResponseMessages";
 import { checkStatusActivity } from "../Helpers/Contacts-activities.helpers";
 import { PagedListContactsActivities, SearchContactsActivities } from "../Models/Contacts-activities-paged-list.models";
 import { getContactById } from "../../Contacts/Controller/Contacts.controller";
+import { getContactsActivitiesModel } from "../../../mongo/schemas/contactsActivities.schema";
 
 export const getContactsActivitiesRepository = async (): Promise<IContactsActivities[]> => {
-    let response: IContactsActivities[] = []
     try {
         const companyName = getCompanyName();
+        if (!companyName) throw new Error("Company name is not set");
 
-        if (!companyName) {
-            throw new Error("Company name is not set");
-        }
-        // Referencia al documento "classes" dentro de la colección de la compañía
-        const docRef = db.collection(companyName).doc("zContactsActivities").collection("activities");
+        const ContactsActivitiesModel = getContactsActivitiesModel(companyName);
 
-        // Obtener el documento
-        const docSnap = await docRef.get();
+        // Obtener todas las actividades de contactos
+        const contactsActivities = await ContactsActivitiesModel.find().lean();
 
-        if (docSnap.empty) {
-            return response;
-        }
-
-        let contactsActivities: IContactsActivities[] = docSnap.docs.map((doc) => doc.data() as IContactsActivities)
-
-        return contactsActivities;
-
-    } catch (error) {
-        console.error("Error obteniendo asistencias:", error);
-        throw new Error("Error interno del servidor");
+        return contactsActivities as IContactsActivities[];
+    } catch (error: any) {
+        console.error("Error obteniendo actividades de contactos:", error);
+        throw new Error(error.message || "Error interno del servidor");
     }
-}
+};
+
 
 export const getContactActivitiesByContactIdRepository = async (contactId: string): Promise<IContactsActivities[]> => {
-    let response: IContactsActivities[] = []
-    try {
-        const companyName = getCompanyName();
-
-        if (!companyName) {
-            throw new Error("Company name is not set");
-        }
-        // Referencia al documento "classes" dentro de la colección de la compañía
-        const docRef = db.collection(companyName).doc("zContactsActivities").collection("activities")
-            .where("contactId", "==", contactId);
-
-
-        // Obtener el documento
-        const docSnap = await docRef.get();
-
-        if (docSnap.empty) {
-            return response;
-        }
-
-        let contactsActivities: IContactsActivities[] = docSnap.docs.map((doc) => doc.data() as IContactsActivities)
-
-        return contactsActivities;
-
-    } catch (error) {
-        console.error("Error obteniendo asistencias:", error);
-        throw new Error("Error interno del servidor");
-    }
-}
-
-export const getContactActivitiesByActivityIdRepository = async (activityId: string): Promise<IContactsActivities> => {
-    let response: IContactsActivities = {} as IContactsActivities
-    try {
-        const companyName = getCompanyName();
-
-        if (!companyName) {
-            throw new Error("Company name is not set");
-        }
-        // Referencia al documento "classes" dentro de la colección de la compañía
-        const docRef = db.collection(companyName).doc("zContactsActivities").collection("activities")
-            .where("id", "==", activityId);
-
-
-        // Obtener el documento
-        const docSnap = await docRef.get();
-
-        if (docSnap.empty) {
-            return response;
-        }
-
-        let contactsActivities: IContactsActivities = docSnap.docs.map((doc) => doc.data() as IContactsActivities)[0]
-
-        return contactsActivities;
-
-    } catch (error) {
-        console.error("Error obteniendo asistencias:", error);
-        throw new Error("Error interno del servidor");
-    }
-}
-
-export const saveActivityRepository = async (activity: IContactsActivities): Promise<ResponseMessages> => {
-    let response = new ResponseMessages()
     try {
         const companyName = getCompanyName();
         if (!companyName) throw new Error("Company name is not set");
 
-        // Referencia al nuevo documento del movimiento dentro de la subcolección
-        const activitiesRef = db
-            .collection(companyName)
-            .doc("zContactsActivities")
-            .collection("activities")
-            .doc(activity.id); // Asegúrate de que movement.id esté definido y sea único
+        const ContactsActivitiesModel = getContactsActivitiesModel(companyName);
 
-        await activitiesRef.set(activity);
+        // Buscar actividades del contacto específico
+        const contactsActivities = await ContactsActivitiesModel.find({ contactId }).lean();
 
-        response.setSuccess("contacto guardado con éxito");
+        return contactsActivities as IContactsActivities[];
     } catch (error: any) {
-        console.error("Error guardando contacto:", error);
-        response.setError(error.message);
+        console.error("Error obteniendo actividades de contacto:", error);
+        throw new Error(error.message || "Error interno del servidor");
+    }
+};
+
+
+export const getContactActivitiesByActivityIdRepository = async (
+    activityId: string
+): Promise<IContactsActivities> => {
+    let response: IContactsActivities = {} as IContactsActivities;
+    try {
+        const companyName = getCompanyName();
+        if (!companyName) throw new Error("Company name is not set");
+
+        const ContactsActivitiesModel = getContactsActivitiesModel(companyName);
+
+        const contactActivity = await ContactsActivitiesModel.findOne({ id: activityId }).lean<IContactsActivities>();
+
+        if (!contactActivity) return response;
+
+        response = contactActivity;
+        return response;
+    } catch (error: any) {
+        console.error("Error obteniendo asistencias:", error);
+        throw new Error(error.message || "Error interno del servidor");
+    }
+};
+
+
+export const saveActivityRepository = async (
+    activity: IContactsActivities
+): Promise<ResponseMessages> => {
+    const response = new ResponseMessages();
+
+    try {
+        const companyName = getCompanyName();
+        if (!companyName) throw new Error("Company name is not set");
+
+        const ContactsActivitiesModel = getContactsActivitiesModel(companyName);
+
+        // Actualiza si existe o crea un nuevo documento
+        await ContactsActivitiesModel.updateOne(
+            { id: activity.id },
+            { $set: activity },
+            { upsert: true }
+        );
+
+        response.setSuccess("Actividad guardada con éxito");
+    } catch (error: any) {
+        console.error("Error guardando actividad:", error);
+        response.setError(error.message || "Error interno del servidor");
     }
 
     return response;
+};
 
-}
 
-export const fulfillActivityRepository = async (activityId: string): Promise<ResponseMessages> => {
-    let response = new ResponseMessages()
+export const fulfillActivityRepository = async (
+    activityId: string
+): Promise<ResponseMessages> => {
+    const response = new ResponseMessages();
+
     try {
         const companyName = getCompanyName();
         if (!companyName) throw new Error("Company name is not set");
 
-        const docRef = db.collection(companyName).doc("zContactsActivities").collection("activities").doc(activityId);
-        const docSnap = await docRef.get();
+        const ContactsActivitiesModel = getContactsActivitiesModel(companyName);
 
-        if (!docSnap.exists) {
-            throw new Error("No se encontro el nombre");
+        const result = await ContactsActivitiesModel.updateOne(
+            { id: activityId },
+            { $set: { fulfillDate: format(new Date(), "full") } }
+        );
+
+        if (result.matchedCount === 0) {
+            throw new Error("No se encontró la actividad");
         }
-        await docRef.update({
-            fulfillDate: format(new Date(), 'full')
-        });
+
         response.setSuccess("Actividad cumplida correctamente");
     } catch (error: any) {
-        response.setError(error.message);
-        return response
+        console.error("Error cumpliendo la actividad:", error);
+        response.setError(error.message || "Error interno del servidor");
     }
 
     return response;
+};
 
-}
 
-export const getPagedListContactsActivitiesRepository = async (search: SearchContactsActivities): Promise<PagedListContactsActivities> => {
-    let response = new PagedListContactsActivities();
+export const getPagedListContactsActivitiesRepository = async (
+    search: SearchContactsActivities
+): Promise<PagedListContactsActivities> => {
+    const response = new PagedListContactsActivities();
     try {
         const companyName = getCompanyName();
+        if (!companyName) throw new Error("Company name is not set");
 
-        if (!companyName) {
-            throw new Error("Company name is not set");
-        }
-        const docRef = db.collection(companyName).doc("zContactsActivities").collection("activities")
-            .where("fulfillDate", "==", null)
-            .orderBy("id");
-        const docSnap = await docRef.get();
+        // Obtenemos el modelo pasando el companyName
+        const ContactsActivitiesModel = getContactsActivitiesModel(companyName);
 
-        if (docSnap.empty) {
+        // Filtro base: solo actividades no cumplidas
+        let filter: any = { fulfillDate: null };
+
+        // Contamos el total de documentos que cumplen el filtro
+        const totalItems = await ContactsActivitiesModel.countDocuments(filter);
+
+        // Paginación
+        const page = search.Page;
+        const limit = await getLimit();
+        const skip = (page - 1) * limit;
+
+        // Traemos los documentos paginados
+        let activities = await ContactsActivitiesModel.find(filter)
+            .sort({ id: 1 })
+            .skip(skip)
+            .limit(limit)
+            .lean();
+
+        if (!activities || activities.length === 0) {
             response.setWarning("No se encontraron actividades");
             return response;
         }
 
-        const references = await getReferencesFromConfigRepository()
-        const users = await getUsersFromConfigRepository()
+        // Obtener referencias y usuarios
+        const references = await getReferencesFromConfigRepository();
+        const users = await getUsersFromConfigRepository();
 
-        const activities = docSnap.docs.map((doc) => doc.data() as IContactsActivities)
+        // Obtener contactos relacionados
+        const uniquePersonIds = Array.from(new Set(activities.map(a => a.contactId)));
+        const contactsPromise = uniquePersonIds.map(async (id) => await getContactByIdRepository(id));
+        const contacts = await Promise.all(contactsPromise);
 
-        let uniquePersonIds = Array.from(new Set(activities.map((m) => m.contactId)));
-        let contactsPromise = uniquePersonIds.map(async (id) => await getContactByIdRepository(id));
-        let contacts = await Promise.all(contactsPromise);
+        // Mapear datos de actividades
+        let activitiesData = activities.map((ca: IContactsActivities) => {
+            const contact = contacts.find(c => c?.id === ca.contactId);
+            const status = checkStatusActivity(ca);
+            return {
+                activityId: ca.id,
+                contactId: contact?.id ?? 'falta dato',
+                name: contact?.name ?? 'falta dato',
+                lastName: contact?.lastName ?? 'falta dato',
+                phone: contact?.phone ?? 'Sin numero de telefono.',
+                interest: contact?.interest ?? 'falta dato',
+                activity: ca.result,
+                nextContactDate: ca.nextContactDate?.toString() ?? 'Sin fecha',
+                status,
+                reference: references.find(r => r.id === contact?.reference)?.name ?? 'Sin referencia',
+                userId: ca.userId,
+            };
+        });
 
-        // Crear un array de promesas
-        let activitiesData = activities
-            .map((ca: IContactsActivities) => {
-                const contact = contacts.find((c) => c.id === ca.contactId)!;
-                const status = checkStatusActivity(ca)
-                return {
-                    activityId: ca.id,
-                    contactId: contact ? contact.id : 'falta dato',
-                    name: contact ? contact.name : 'falta dato',
-                    lastName: contact ? contact.lastName : 'falta dato',
-                    phone: contact ? contact.phone ?? 'Sin numero de telefono.' : 'falta dato',
-                    interest: contact ? contact.interest : 'falta dato',
-                    activity: ca.result,
-                    nextContactDate: ca.nextContactDate?.toString() ?? 'Sin fecha',
-                    status,
-                    reference: references.find(r => r.id === contact.reference)?.name ?? 'Sin referencia',
-                    userId: ca.userId,
-                }
-            });
-
-
-        if (!Array.isArray(activitiesData) || activitiesData.length === 0) {
-            response.setError("No se encontraron actividades válidas");
-            return response;
-        }
-
-        // Resto del código de filtrado...
+        // Aplicar filtros de búsqueda
         if (search.Status && search.Status !== 'all') {
-            if (search.Status === 'toComplete') activitiesData = activitiesData.filter((item: ActivityToTable) => item.status?.toLowerCase() === 'vencida' || item.status?.toLowerCase() === 'en peligro');
-            if (search.Status === 'warning') activitiesData = activitiesData.filter((item: ActivityToTable) => item.status?.toLowerCase() === 'vencida');
-            if (search.Status === 'danger') activitiesData = activitiesData.filter((item: ActivityToTable) => item.status?.toLowerCase() === 'en peligro');
-            if (search.Status === 'ok') activitiesData = activitiesData.filter((item: ActivityToTable) => item.status?.toLowerCase() === 'sin vencer');
+            if (search.Status === 'toComplete') {
+                activitiesData = activitiesData.filter(a => a.status?.toLowerCase() === 'vencida' || a.status?.toLowerCase() === 'en peligro');
+            }
+            if (search.Status === 'warning') {
+                activitiesData = activitiesData.filter(a => a.status?.toLowerCase() === 'vencida');
+            }
+            if (search.Status === 'danger') {
+                activitiesData = activitiesData.filter(a => a.status?.toLowerCase() === 'en peligro');
+            }
+            if (search.Status === 'ok') {
+                activitiesData = activitiesData.filter(a => a.status?.toLowerCase() === 'sin vencer');
+            }
         }
 
         if (search.Activity) {
-            if (search.Activity === 'follow') activitiesData = activitiesData.filter((item: ActivityToTable) => item.activity?.toLowerCase() === 'seguimiento');
-            if (search.Activity === 'proofClass') activitiesData = activitiesData.filter((item: ActivityToTable) => item.activity?.toLowerCase() === 'clase de prueba');
+            if (search.Activity === 'follow') {
+                activitiesData = activitiesData.filter(a => a.activity?.toLowerCase() === 'seguimiento');
+            }
+            if (search.Activity === 'proofClass') {
+                activitiesData = activitiesData.filter(a => a.activity?.toLowerCase() === 'clase de prueba');
+            }
         }
 
         if (search.Name) {
-            activitiesData = activitiesData.filter((item: ActivityToTable) =>
-                item.name.toLowerCase().includes(search.Name.toLowerCase()) ||
-                item.lastName.toLowerCase().includes(search.Name.toLowerCase())
+            activitiesData = activitiesData.filter(a =>
+                a.name.toLowerCase().includes(search.Name.toLowerCase()) ||
+                a.lastName.toLowerCase().includes(search.Name.toLowerCase())
             );
         }
 
         if (search.Interest) {
-            if (search.Interest === 'low') activitiesData = activitiesData.filter((item: ActivityToTable) => item.interest?.toLowerCase() === 'bajo');
-            if (search.Interest === 'medium') activitiesData = activitiesData.filter((item: ActivityToTable) => item.interest?.toLowerCase() === 'medio');
-            if (search.Interest === 'high') activitiesData = activitiesData.filter((item: ActivityToTable) => item.interest?.toLowerCase() === 'alto');
+            if (search.Interest === 'low') activitiesData = activitiesData.filter(a => a.interest?.toLowerCase() === 'bajo');
+            if (search.Interest === 'medium') activitiesData = activitiesData.filter(a => a.interest?.toLowerCase() === 'medio');
+            if (search.Interest === 'high') activitiesData = activitiesData.filter(a => a.interest?.toLowerCase() === 'alto');
         }
 
         if (search.Reference) {
-            activitiesData = activitiesData.filter((item: ActivityToTable) => item.reference === search.Reference);
+            activitiesData = activitiesData.filter(a => a.reference === search.Reference);
         }
 
         if (search.User) {
-            activitiesData = activitiesData.filter((item: ActivityToTable) => item.userId === search.User);
+            activitiesData = activitiesData.filter(a => a.userId === search.User);
         }
 
-        const page = search.Page;
-        const limit = await getLimit();
-        const startIndex = (page - 1) * limit;
-        const endIndex = startIndex + limit;
-
-        const paginatedClasses = activitiesData.slice(startIndex, endIndex);
-
-        response.Items = paginatedClasses.map((s: ActivityToTable) => {
-            return {
-                id: s.activityId,
-                status: s.status,
-                fullName: `${s.name} ${s.lastName}`,
-                phone: s.phone,
-                interest: s.interest,
-                activity: s.activity,
-                reference: s.reference,
-                nextContactDate: s.nextContactDate,
-                user: users.find(u => u.id === s.userId)?.name || 'sin usuario',
-                contactId: s.contactId
-            }
-        })
-        response.TotalItems = activitiesData.length;
-        response.ReferenceFilter = references.map(r => ({
-            id: r.id,
-            name: r.name
+        // Mapear a respuesta final
+        response.Items = activitiesData.map((s: any) => ({
+            id: s.activityId,
+            status: s.status,
+            fullName: `${s.name} ${s.lastName}`,
+            phone: s.phone,
+            interest: s.interest,
+            activity: s.activity,
+            reference: s.reference,
+            nextContactDate: s.nextContactDate,
+            user: users.find(u => u.id === s.userId)?.name || 'sin usuario',
+            contactId: s.contactId
         }));
+
+        response.TotalItems = totalItems;
+        response.ReferenceFilter = references.map(r => ({ id: r.id, name: r.name }));
         response.PageSize = limit;
-        response.UserFilter = users.map(u => ({
-            id: u.id,
-            name: u.name
-        }))
+        response.UserFilter = users.map(u => ({ id: u.id, name: u.name }));
+
         return response;
+
     } catch (error) {
-        console.error("Error obteniendo clases:", error);
+        console.error("Error obteniendo actividades:", error);
         response.setError("Error interno del servidor");
         return response;
     }
-}
+};
 
-export const assignActivityRepository = async (userToAssignId: string, activityId: string): Promise<ResponseMessages> => {
+
+export const assignActivityRepository = async (
+    userToAssignId: string,
+    activityId: string
+): Promise<ResponseMessages> => {
     const response = new ResponseMessages();
     try {
         const companyName = getCompanyName();
         if (!companyName) throw new Error("Company name is not set");
 
-        const docRef = db.collection(companyName).doc("zContactsActivities").collection("activities").doc(activityId);
+        // Obtener el modelo de actividades
+        const ContactsActivitiesModel = getContactsActivitiesModel(companyName);
 
-        const docSnap = await docRef.get();
+        // Actualizar la actividad
+        const result = await ContactsActivitiesModel.updateOne(
+            { id: activityId },
+            { $set: { userId: userToAssignId } }
+        );
 
-        if (!docSnap.exists) {
-            throw new Error("No se encontro el nombre");
+        if (result.matchedCount === 0) {
+            throw new Error("No se encontró la actividad");
         }
 
-        await docRef.update({
-            userId: userToAssignId
-        });
+        response.setSuccess("Actividad asignada correctamente");
 
     } catch (error: any) {
-        response.setError(error.message);
-        return response;
+        console.error("Error asignando actividad:", error);
+        response.setError(error.message || "Error interno del servidor");
     }
 
     return response;
-}
+};

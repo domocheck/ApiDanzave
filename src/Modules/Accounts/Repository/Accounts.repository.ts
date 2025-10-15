@@ -10,6 +10,9 @@ import { ITeachers } from "../../Teachers/Models/Teachers.models";
 import { IStudents } from "../../Students/Models/Students.models";
 import { v4 as uuidv4 } from 'uuid';
 import { getDiscount } from "../Helpers/Accounts.helpers";
+import { getStudentsAccountsModel } from "../../../mongo/schemas/studentsAccounts.schema";
+import { getTeachersAccountsModel } from "../../../mongo/schemas/teachersAccounts.schema";
+import { getTeachersModel } from "../../../mongo/schemas/teachers.schema";
 
 
 export const getAccountsStudentsActivesRepository = async (): Promise<IAccount[]> => {
@@ -45,38 +48,8 @@ export const getAccountsStudentsActivesRepository = async (): Promise<IAccount[]
 }
 
 export const getStudentsAccounts = async (): Promise<Account> => {
-    let response = new Account();
-    try {
-        const companyName = getCompanyName();
-        if (!companyName) response.setError("Company name is not set");
+    const response = new Account();
 
-        // Referencia al documento "accounts"
-        const docRef = db.collection(companyName).doc("studentsAccounts").collection("accounts");
-        const docSnap = await docRef.get();
-
-        if (docSnap.empty) {
-            response.setWarning("No se encontraron cuentas");
-            return response;
-        }
-
-        // Obtener solo la propiedad 'studentsAccounts' del documento
-        const studentsAccountsData = docSnap.docs.map((doc) => doc.data() as IAccount) ?? [];
-
-        // Filtrar directamente mientras se asigna a response.Items
-        response.Items = studentsAccountsData;
-        response.TotalItems = response.Items.length;
-
-        return response;
-    } catch (error) {
-        console.error("Error obteniendo asistencias:", error);
-        throw new Error("Error interno del servidor");
-    }
-}
-
-export const getTuitionStudentsAccounts = async (
-    year: string
-): Promise<Account> => {
-    let response = new Account();
     try {
         const companyName = getCompanyName();
         if (!companyName) {
@@ -84,158 +57,202 @@ export const getTuitionStudentsAccounts = async (
             return response;
         }
 
-        let query = db
-            .collection(companyName)
-            .doc("studentsAccounts")
-            .collection("accounts") as FirebaseFirestore.Query;
+        const StudentsAccountModel = getStudentsAccountsModel(companyName);
 
-        if (year) {
-            query = query.where("year", "==", year);
-        }
+        // Obtener todas las cuentas de estudiantes
+        const studentsAccountsData = await StudentsAccountModel.find().lean();
 
-        const docSnap = await query.get();
-
-        if (docSnap.empty) {
+        if (!studentsAccountsData || studentsAccountsData.length === 0) {
             response.setWarning("No se encontraron cuentas");
             return response;
         }
 
-        // Mapear los resultados
-        let studentsAccountsData = docSnap.docs.map((doc) => doc.data() as IAccount);
+        response.Items = studentsAccountsData;
+        response.TotalItems = studentsAccountsData.length;
 
-        // Filtro adicional (no indexable) como `description.includes`
+        return response;
+    } catch (error: any) {
+        console.error("Error obteniendo cuentas de estudiantes:", error);
+        throw new Error("Error interno del servidor");
+    }
+}
+
+export const getTuitionStudentsAccounts = async (
+    year: string
+): Promise<Account> => {
+    const response = new Account();
+
+    try {
+        const companyName = getCompanyName();
+        if (!companyName) {
+            response.setError("Company name is not set");
+            return response;
+        }
+
+        const StudentsAccountModel = getStudentsAccountsModel(companyName);
+
+        // Construcción dinámica del filtro
+        const filter: any = {};
+        if (year) {
+            filter.year = year;
+        }
+
+        // Buscar las cuentas
+        let studentsAccountsData = await StudentsAccountModel.find(filter).lean();
+
+        if (!studentsAccountsData || studentsAccountsData.length === 0) {
+            response.setWarning("No se encontraron cuentas");
+            return response;
+        }
+
+        // Filtrar las cuentas que contengan "matricula" en la descripción
         studentsAccountsData = studentsAccountsData.filter((acc) =>
-            acc.description?.toLowerCase().includes('matricula')
+            acc.description?.toLowerCase().includes("matricula")
         );
 
         response.Items = studentsAccountsData;
         response.TotalItems = studentsAccountsData.length;
 
         return response;
-    } catch (error) {
+    } catch (error: any) {
         console.error("Error obteniendo cuentas de alumnos:", error);
         throw new Error("Error interno del servidor");
     }
 };
 
 
+
 export const getStudentsAccountsByPersonIds = async (personIds: string[]): Promise<Account> => {
-    let response = new Account();
+    const response = new Account();
+
     try {
         const companyName = getCompanyName();
-        if (!companyName) response.setError("Company name is not set");
-        // Referencia al documento "accounts"
-        const docRef = db.collection(companyName).doc("studentsAccounts").collection("accounts")
-            .where("idPerson", "in", personIds);
-        const docSnap = await docRef.get();
+        if (!companyName) {
+            response.setError("Company name is not set");
+            return response;
+        }
 
-        if (docSnap.empty) {
+        // Si el array está vacío, no tiene sentido hacer la consulta
+        if (!personIds || personIds.length === 0) {
+            response.setWarning("No se proporcionaron IDs de personas");
+            return response;
+        }
+
+        const StudentsAccountModel = getStudentsAccountsModel(companyName);
+
+        // Consulta a MongoDB: buscar todas las cuentas cuyos idPerson estén en personIds
+        const studentsAccountsData = await StudentsAccountModel.find({
+            idPerson: { $in: personIds }
+        }).lean();
+
+        if (!studentsAccountsData || studentsAccountsData.length === 0) {
             response.setWarning("No se encontraron cuentas");
             return response;
         }
 
-        // Obtener solo la propiedad 'studentsAccounts' del documento
-        const studentsAccountsData = docSnap.docs.map((doc) => doc.data() as IAccount) ?? [];
-
-        // Filtrar directamente mientras se asigna a response.Items
         response.Items = studentsAccountsData;
-        response.TotalItems = response.Items.length;
+        response.TotalItems = studentsAccountsData.length;
 
         return response;
-    } catch (error) {
-        console.error("Error obteniendo asistencias:", error);
+    } catch (error: any) {
+        console.error("Error obteniendo cuentas de alumnos:", error);
         throw new Error("Error interno del servidor");
     }
-}
+};
+
 
 export const getPendingStudentsAccounts = async (): Promise<Account> => {
-    let response = new Account();
+    const response = new Account();
+
     try {
         const companyName = getCompanyName();
-        if (!companyName) response.setError("Company name is not set");
-
-        // Referencia al documento "accounts"
-        const docRef = db.collection(companyName).doc("studentsAccounts").collection("accounts").where("status", "==", "pending");
-        const docSnap = await docRef.get();
-
-        if (docSnap.empty) {
-            response.setWarning("No se encontraron cuentas");
+        if (!companyName) {
+            response.setError("Company name is not set");
             return response;
         }
 
-        // Obtener solo la propiedad 'studentsAccounts' del documento
-        const studentsAccountsData = docSnap.docs.map((doc) => doc.data() as IAccount) ?? [];
+        const StudentsAccountModel = getStudentsAccountsModel(companyName);
 
-        // Filtrar directamente mientras se asigna a response.Items
+        // Buscar todas las cuentas con estado "pending"
+        const studentsAccountsData = await StudentsAccountModel.find({ status: "pending" }).lean();
+
+        if (!studentsAccountsData || studentsAccountsData.length === 0) {
+            response.setWarning("No se encontraron cuentas pendientes");
+            return response;
+        }
+
         response.Items = studentsAccountsData;
-        response.TotalItems = response.Items.length;
+        response.TotalItems = studentsAccountsData.length;
 
         return response;
-    } catch (error) {
-        console.error("Error obteniendo asistencias:", error);
+    } catch (error: any) {
+        console.error("Error obteniendo cuentas pendientes:", error);
         throw new Error("Error interno del servidor");
     }
-}
+};
+
 
 export const getPendingTeachersAccounts = async (): Promise<Account> => {
-    let response = new Account();
+    const response = new Account();
+
     try {
         const companyName = getCompanyName();
-        if (!companyName) response.setError("Company name is not set");
-
-        // Referencia al documento "accounts"
-        const docRef = db.collection(companyName).doc("teachersAccounts").collection("accounts").where("status", "==", "pending");
-        const docSnap = await docRef.get();
-
-        if (docSnap.empty) {
-            response.setWarning("No se encontraron cuentas");
+        if (!companyName) {
+            response.setError("Company name is not set");
             return response;
         }
 
-        // Obtener solo la propiedad 'studentsAccounts' del documento
-        const studentsAccountsData = docSnap.docs.map((doc) => doc.data() as IAccount) ?? [];
+        const TeachersAccountModel = getTeachersAccountsModel(companyName);
 
-        // Filtrar directamente mientras se asigna a response.Items
-        response.Items = studentsAccountsData;
-        response.TotalItems = response.Items.length;
+        // Buscar todas las cuentas con estado "pending"
+        const teachersAccountsData = await TeachersAccountModel.find({ status: "pending" }).lean();
+
+        if (!teachersAccountsData || teachersAccountsData.length === 0) {
+            response.setWarning("No se encontraron cuentas pendientes");
+            return response;
+        }
+
+        response.Items = teachersAccountsData;
+        response.TotalItems = teachersAccountsData.length;
 
         return response;
-    } catch (error) {
-        console.error("Error obteniendo asistencias:", error);
+    } catch (error: any) {
+        console.error("Error obteniendo cuentas de profesores pendientes:", error);
         throw new Error("Error interno del servidor");
     }
-}
+};
+
 
 export const getStudentsAccountsByStatus = async (status: string): Promise<Account> => {
-    let response = new Account();
+    const response = new Account();
+
     try {
         const companyName = getCompanyName();
-        if (!companyName) response.setError("Company name is not set");
-
-        // Referencia al documento "accounts"
-        const docRef = db.collection(companyName).doc("studentsAccounts").collection("accounts")
-            .where("status", "==", status);
-
-        const docSnap = await docRef.get();
-
-        if (docSnap.empty) {
-            response.setWarning("No se encontraron cuentas");
+        if (!companyName) {
+            response.setError("Company name is not set");
             return response;
         }
 
-        // Obtener solo la propiedad 'studentsAccounts' del documento
-        const studentsAccountsData: IAccount[] = docSnap.docs.map((doc) => doc.data() as IAccount) ?? [];
+        const StudentsAccountModel = getStudentsAccountsModel(companyName);
 
-        // Filtrar directamente mientras se asigna a response.Items
+        // Buscar cuentas por estado (status)
+        const studentsAccountsData = await StudentsAccountModel.find({ status }).lean();
+
+        if (!studentsAccountsData || studentsAccountsData.length === 0) {
+            response.setWarning("No se encontraron cuentas con el estado especificado");
+            return response;
+        }
+
         response.Items = studentsAccountsData;
-        response.TotalItems = response.Items.length;
+        response.TotalItems = studentsAccountsData.length;
 
         return response;
-    } catch (error) {
-        console.error("Error obteniendo asistencias:", error);
+    } catch (error: any) {
+        console.error("Error obteniendo cuentas de alumnos por estado:", error);
         throw new Error("Error interno del servidor");
     }
-}
+};
+
 
 export const getAccountsByStudentIdRepository = async (studentId: string): Promise<IAccount[]> => {
     let response: IAccount[] = [];
@@ -243,24 +260,18 @@ export const getAccountsByStudentIdRepository = async (studentId: string): Promi
         const companyName = getCompanyName();
         if (!companyName) throw new Error("Company name is not set");
 
-        // Referencia al documento "accounts"
-        const docRef = db.collection(companyName)
-            .doc("studentsAccounts")
-            .collection("accounts")
-            .where("idPerson", "==", studentId)
-            .where("status", "==", "pending");
+        const StudentsAccountModel = getStudentsAccountsModel(companyName);
 
-        const docSnap = await docRef.get();
+        const accounts = await StudentsAccountModel.find({
+            idPerson: studentId,
+            status: "pending"
+        }).lean();
 
-        if (docSnap.empty) {
+        if (accounts?.length === 0) {
             throw new Error("No se encontraron cuentas");
         }
 
-        // Obtener solo la propiedad 'studentsAccounts' del documento
-        const studentsAccountsData: IAccount[] = docSnap.docs.map((doc) => doc.data() as IAccount) ?? [];
-
-
-        response = studentsAccountsData;
+        response = accounts;
     } catch (error) {
         console.error("Error obteniendo asistencias:", error);
         throw new Error("Error interno del servidor");
@@ -274,23 +285,18 @@ export const getAccountsByTeacherIdRepository = async (teacherId: string): Promi
         const companyName = getCompanyName();
         if (!companyName) throw new Error("Company name is not set");
 
-        // Referencia al documento "accounts"
-        const docRef = db.collection(companyName).doc("teachersAccounts").collection("accounts")
-            .where("idPerson", "==", teacherId)
-            .where("status", "==", "pending");;
+        const StudentsAccountModel = getTeachersAccountsModel(companyName);
 
-        const docSnap = await docRef.get();
+        const accounts = await StudentsAccountModel.find({
+            idPerson: teacherId,
+            status: "pending"
+        }).lean();
 
-        if (docSnap.empty) {
+        if (accounts?.length === 0) {
             throw new Error("No se encontraron cuentas");
         }
 
-        // Obtener solo la propiedad 'teachersAccounts' del documento
-        const teachersAccountsData: IAccount[] = docSnap.docs.map((doc) => doc.data() as IAccount) ?? [];
-
-        const teachersAccounts = teachersAccountsData;
-
-        response = teachersAccounts;
+        response = accounts;
     } catch (error) {
         console.error("Error obteniendo asistencias:", error);
         throw new Error("Error interno del servidor");
@@ -332,86 +338,97 @@ export const getAccountsTeachersActives = async () => {
 }
 
 export const getTeachersAccountsByPersonIds = async (personIds: string[]): Promise<Account> => {
-    let response = new Account();
+    const response = new Account();
+
     try {
         const companyName = getCompanyName();
-        if (!companyName) response.setError("Company name is not set");
+        if (!companyName) {
+            response.setError("Company name is not set");
+            return response;
+        }
 
-        // Referencia al documento "accounts"
-        const docRef = db.collection(companyName).doc("teachersAccounts").collection("accounts")
-            .where("idPerson", "in", personIds);
-        const docSnap = await docRef.get();
+        // Si el array está vacío, no tiene sentido hacer la consulta
+        if (!personIds || personIds.length === 0) {
+            response.setWarning("No se proporcionaron IDs de personas");
+            return response;
+        }
 
-        if (docSnap.empty) {
+        const TeachersAccountModel = getTeachersAccountsModel(companyName);
+
+        // Consulta a MongoDB: buscar todas las cuentas cuyos idPerson estén en personIds
+        const teachersAccountsData = await TeachersAccountModel.find({
+            idPerson: { $in: personIds }
+        }).lean();
+
+        if (!teachersAccountsData || teachersAccountsData.length === 0) {
             response.setWarning("No se encontraron cuentas");
             return response;
         }
 
-        // Obtener solo la propiedad 'studentsAccounts' del documento
-        const studentsAccountsData = docSnap.docs.map((doc) => doc.data() as IAccount) ?? [];
-
-        // Filtrar directamente mientras se asigna a response.Items
-        response.Items = studentsAccountsData;
-        response.TotalItems = response.Items.length;
+        response.Items = teachersAccountsData;
+        response.TotalItems = teachersAccountsData.length;
 
         return response;
-    } catch (error) {
-        console.error("Error obteniendo asistencias:", error);
+    } catch (error: any) {
+        console.error("Error obteniendo cuentas de profesores:", error);
         throw new Error("Error interno del servidor");
     }
-}
+};
+
 
 export const getTeachersByStatus = async (status: string): Promise<ITeachers[]> => {
-    let teachersByStatus = [] as ITeachers[];
     try {
         const companyName = getCompanyName();
         if (!companyName) throw new Error("Company name is not set");
 
-        const docRef = db.collection(companyName).doc("teachers").collection("teachers").where("status", "==", status);
-        const docSnap = await docRef.get();
+        const TeachersModel = getTeachersModel(companyName);
 
-        if (docSnap.empty) {
-            return teachersByStatus;
+        // Buscar todos los profesores con el status indicado
+        let teachersByStatus = await TeachersModel.find({ status }).lean();
+
+        if (!teachersByStatus || teachersByStatus.length === 0) {
+            return [];
         }
 
-        teachersByStatus = docSnap.docs.map(doc => doc.data() as ITeachers);
-
-        return teachersByStatus.sort((a, b) => a.name.localeCompare(b.name))
-    } catch (error) {
-        console.error("Error obteniendo asistencias:", error);
+        // Ordenar por nombre
+        return teachersByStatus.sort((a, b) => a.name.localeCompare(b.name));
+    } catch (error: any) {
+        console.error("Error obteniendo profesores:", error);
         throw new Error("Error interno del servidor");
     }
-}
+};
+
 
 export const getTeachersAccounts = async (): Promise<Account> => {
-    let response = new Account();
+    const response = new Account();
+
     try {
         const companyName = getCompanyName();
-        if (!companyName) response.setError("Company name is not set");
+        if (!companyName) {
+            response.setError("Company name is not set");
+            return response;
+        }
 
-        // Referencia al documento "accounts"
-        const docRef = db.collection(companyName).doc("teachersAccounts").collection("accounts");
+        const TeachersAccountsModel = getTeachersAccountsModel(companyName);
 
-        const docSnap = await docRef.get();
+        // Obtener todas las cuentas de profesores
+        const teachersAccountsData = await TeachersAccountsModel.find().lean();
 
-        if (docSnap.empty) {
+        if (!teachersAccountsData || teachersAccountsData.length === 0) {
             response.setWarning("No se encontraron cuentas");
             return response;
         }
 
-        // Obtener solo la propiedad 'teachersAccounts' del documento
-        const teachersAccountsData = docSnap.docs.map((doc) => doc.data() as IAccount) ?? [];
-
-        // Filtrar directamente mientras se asigna a response.Items
         response.Items = teachersAccountsData;
-        response.TotalItems = response.Items.length;
+        response.TotalItems = teachersAccountsData.length;
 
         return response;
-    } catch (error) {
-        console.error("Error obteniendo asistencias:", error);
+    } catch (error: any) {
+        console.error("Error obteniendo cuentas de profesores:", error);
         throw new Error("Error interno del servidor");
     }
-}
+};
+
 
 export const updateAccountTeacherRepository = async (
     idAccount: string,
@@ -427,38 +444,34 @@ export const updateAccountTeacherRepository = async (
             return response;
         }
 
-        const accountRef = db
-            .collection(companyName)
-            .doc("teachersAccounts")
-            .collection("accounts")
-            .doc(idAccount);
+        const TeachersAccountsModel = getTeachersAccountsModel(companyName);
 
-        const docSnap = await accountRef.get();
+        // Buscar la cuenta por su id
+        const currentAccount = await TeachersAccountsModel.findOne({ id: idAccount }).lean();
 
-        if (!docSnap.exists) {
+        if (!currentAccount) {
             response.setWarning("Cuenta no encontrada");
             return response;
         }
 
-        const currentAccount = docSnap.data() as IAccount;
-
-        let updatedAccount;
+        let updatedFields: Partial<IAccount> = {};
 
         if (type === "increase") {
-            updatedAccount = {
+            updatedFields = {
                 amount: currentAccount.amount + monthly,
                 balance: currentAccount.balance + monthly,
                 increase: (currentAccount.increase || 0) + monthly,
             };
         } else {
-            updatedAccount = {
+            updatedFields = {
                 amount: currentAccount.amount - monthly,
                 balance: currentAccount.balance - monthly,
                 discounts: (currentAccount.discounts || 0) + monthly,
             };
         }
 
-        await accountRef.update(updatedAccount);
+        // Actualizar la cuenta en MongoDB
+        await TeachersAccountsModel.findByIdAndUpdate(idAccount, updatedFields);
 
         response.setSuccess("Cuenta modificada con éxito");
         return response;
@@ -470,158 +483,139 @@ export const updateAccountTeacherRepository = async (
     }
 };
 
+
 export const getStudentAccountByAccountIdRepository = async (accountId: string): Promise<IAccount> => {
-    let response = {} as IAccount;
-    try {
-        const companyName = getCompanyName();
-        if (!companyName) throw new Error("Company name is not set");
+    const companyName = getCompanyName();
+    if (!companyName) throw new Error("Company name is not set");
 
-        const docRef = db.collection(companyName).doc("studentsAccounts").collection("accounts")
-            .where("id", "==", accountId);
+    const StudentsAccountsModel = getStudentsAccountsModel(companyName);
 
-        const docSnap = await docRef.get();
+    // Buscar la cuenta por id
+    const account = await StudentsAccountsModel.findOne({ id: accountId }).lean();
 
-        if (docSnap.empty) {
-            throw new Error("No se encontraron cuentas");
-        }
-
-        const studentsAccountsData: IAccount[] = docSnap.docs.map((doc) => doc.data() as IAccount) ?? [];
-
-        const account = studentsAccountsData[0];
-
-        response = account;
-
-        return response;
-    } catch (error) {
-        console.error("Error obteniendo asistencias:", error);
-        throw new Error("Error interno del servidor");
+    if (!account) {
+        throw new Error("No se encontró la cuenta");
     }
-}
+
+    return account;
+};
+
 
 export const getTeacherAccountByAccountIdRepository = async (accountId: string): Promise<IAccount> => {
-    let response = {} as IAccount;
-    try {
-        const companyName = getCompanyName();
-        if (!companyName) throw new Error("Company name is not set");
+    const companyName = getCompanyName();
+    if (!companyName) throw new Error("Company name is not set");
 
-        const docRef = db.collection(companyName).doc("teachersAccounts").collection("accounts")
-            .where("id", "==", accountId);
-        const docSnap = await docRef.get();
+    const TeachersAccountsModel = getTeachersAccountsModel(companyName);
 
-        if (docSnap.empty) {
-            throw new Error("No se encontraron cuentas");
-        }
+    // Buscar la cuenta por id
+    const account = await TeachersAccountsModel.findOne({ id: accountId }).lean();
 
-        const teachersAccountsData: IAccount[] = docSnap.docs.map((doc) => doc.data() as IAccount) ?? [];
-
-        const account = teachersAccountsData[0];
-
-        response = account;
-
-        return response;
-    } catch (error) {
-        console.error("Error obteniendo asistencias:", error);
-        throw new Error("Error interno del servidor");
+    if (!account) {
+        throw new Error("No se encontró la cuenta");
     }
-}
+
+    return account;
+};
+
 
 export const getAccountByAccountIdAndType = async (accountId: string, type: string): Promise<IAccount> => {
+    const companyName = getCompanyName();
+    if (!companyName) throw new Error("Company name is not set");
 
-    let response = {} as IAccount;
-    try {
-        const companyName = getCompanyName();
-        if (!companyName) throw new Error("Company name is not set");
+    // Obtener el modelo correspondiente según el tipo
+    const AccountModel = type === "teachersAccounts"
+        ? getTeachersAccountsModel(companyName)
+        : getStudentsAccountsModel(companyName);
 
-        const docRef = db.collection(companyName).doc(type).collection("accounts");
+    // Buscar la cuenta por id
+    const account = await AccountModel.findOne({ id: accountId }).lean();
 
-        const docSnap = await docRef.get();
-
-        if (!docSnap.empty) {
-            throw new Error("No se encontraron cuentas");
-        }
-
-        const accountsData: IAccount[] = docSnap.docs.map((doc) => doc.data() as IAccount) ?? [];
-        let currentAccount = accountsData.filter((a) => a.id === accountId)[0];
-
-        response = currentAccount
-    } catch (error: any) {
-        throw new Error(error.message);
+    if (!account) {
+        throw new Error("No se encontró la cuenta");
     }
-    return response;
-}
+
+    return account;
+};
+
 
 export const editAccountRepository = async (editAccount: EditAccount): Promise<ResponseMessages> => {
-    let response = new ResponseMessages();
+    const response = new ResponseMessages();
     try {
         const companyName = getCompanyName();
         if (!companyName) throw new Error("Company name is not set");
 
-        const docRef = db.collection(companyName).doc(editAccount.type).collection("accounts").doc(editAccount.accountId);
+        // Obtener el modelo correspondiente según el tipo
+        const AccountModel = editAccount.type === "teachersAccounts"
+            ? getTeachersAccountsModel(companyName)
+            : getStudentsAccountsModel(companyName);
 
-        const docSnap = await docRef.get();
+        // Buscar la cuenta por id
+        const currentAccount = await AccountModel.findOne({ id: editAccount.accountId }).lean();
 
-        if (!docSnap.exists) {
-            throw new Error("No se encontraron cuentas");
+        if (!currentAccount) {
+            throw new Error("No se encontró la cuenta");
         }
 
-        let currentAccount = docSnap.data() as IAccount;
-        let updatedAccount;
+        const totalPaid = currentAccount.paymentsMethods?.reduce((acc, p) => acc + p.value, 0) || 0;
 
-        const totalPaid = currentAccount.paymentsMethods.reduce((acc, p) => acc + p.value, 0);
-
-        let isSettleAccount = false;
-
-        if (
+        const isSettleAccount =
             (currentAccount.isPaidWhitEft && editAccount.eftAmount === totalPaid) ||
-            (!currentAccount.isPaidWhitEft && editAccount.amount === totalPaid)
-        ) {
-            isSettleAccount = true;
-        }
+            (!currentAccount.isPaidWhitEft && editAccount.amount === totalPaid);
 
-        updatedAccount = {
+        const updatedAccount = {
             amount: editAccount.amount,
             eftAmount: editAccount.eftAmount,
             balance: editAccount.amount - totalPaid,
             eftBalance: editAccount.eftAmount - totalPaid,
-            status: isSettleAccount ? 'paid' : 'pending',
+            status: isSettleAccount ? "paid" : "pending",
         };
 
+        await AccountModel.updateOne({ id: editAccount.accountId }, { $set: updatedAccount });
 
-        await docRef.update(updatedAccount);
-
-        response.setSuccess('Cuenta modificada con exito');
+        response.setSuccess("Cuenta modificada con éxito");
         return response;
+
     } catch (error: any) {
+        console.error("Error modificando cuenta:", error);
         response.setError(error.message);
         return response;
     }
-}
+};
 
-export const updateAccountByEditMovementRepository = async (account: IAccount, type: string): Promise<ResponseMessages> => {
+export const updateAccountByEditMovementRepository = async (
+    account: IAccount,
+    type: string
+): Promise<ResponseMessages> => {
+    const response = new ResponseMessages();
 
-    let response = new ResponseMessages();
     try {
         const companyName = getCompanyName();
         if (!companyName) throw new Error("Company name is not set");
 
-        const docRef = db.collection(companyName).doc(type).collection("accounts").doc(account.id);
+        // Obtener el modelo correspondiente según el tipo
+        const AccountModel = type === "teachersAccounts"
+            ? getTeachersAccountsModel(companyName)
+            : getStudentsAccountsModel(companyName);
 
-        const docSnap = await docRef.get();
-
-        if (!docSnap.exists) {
-            throw new Error("No se encontraron cuentas");
+        // Verificar que la cuenta exista
+        const currentAccount = await AccountModel.findOne({ id: account.id }).lean();
+        if (!currentAccount) {
+            throw new Error("No se encontró la cuenta");
         }
 
-        let currentAccount = docSnap.data() as IAccount;
+        // Actualizar solo los campos modificados
+        await AccountModel.updateOne({ id: account.id }, { $set: account });
 
-        await docRef.set(account as { [x: string]: any }, { merge: true });
-        response.setSuccess('Cuenta modificada con exito');
+        response.setSuccess("Cuenta modificada con éxito");
+        return response;
+
     } catch (error: any) {
+        console.error("Error actualizando cuenta:", error);
         response.setError(error.message);
-        return response
+        return response;
     }
-    return response;
-}
+};
+
 
 
 export const settleAccountRepository = async (
@@ -635,59 +629,55 @@ export const settleAccountRepository = async (
         const companyName = getCompanyName();
         if (!companyName) throw new Error("Company name is not set");
 
-        const reference = type === 'student' ? 'studentsAccounts' : 'teachersAccounts';
-        const docRef = db
-            .collection(companyName)
-            .doc(reference)
-            .collection("accounts")
-            .doc(currentAccount.id); // ✅ Referencia al documento exacto
+        // Obtener el modelo correspondiente según el tipo
+        const AccountModel = type === "student"
+            ? getStudentsAccountsModel(companyName)
+            : getTeachersAccountsModel(companyName);
 
-        const docSnap = await docRef.get();
-        if (!docSnap.exists) {
+        // Buscar la cuenta existente
+        const accountDoc = await AccountModel.findOne({ id: currentAccount.id }).lean();
+        if (!accountDoc) {
             throw new Error("No se encontró la cuenta");
         }
 
+        // Calcular pagos totales
         const currentPaid = paymentsMethods.reduce((acc, item) => acc + item.value, 0);
-        const accountPaid = currentAccount.paymentsMethods.reduce((acc, item) => acc + item.value, 0);
+        const accountPaid = (accountDoc.paymentsMethods || []).reduce((acc, item) => acc + item.value, 0);
         const totalPaid = currentPaid + accountPaid;
 
-        const mergedPaymentsMethods = [...currentAccount.paymentsMethods];
-
+        // Merge de métodos de pago
+        const mergedPaymentsMethods: PaymentMethod[] = [...(accountDoc.paymentsMethods || [])];
         paymentsMethods.forEach((newPayment) => {
-            const existingPaymentIndex = mergedPaymentsMethods.findIndex(
-                (payment) => payment.idPayment === newPayment.idPayment
+            const existingIndex = mergedPaymentsMethods.findIndex(
+                (p) => p.idPayment === newPayment.idPayment
             );
-
-            if (existingPaymentIndex !== -1) {
-                mergedPaymentsMethods[existingPaymentIndex].value += newPayment.value;
+            if (existingIndex !== -1) {
+                mergedPaymentsMethods[existingIndex].value += newPayment.value;
             } else {
                 mergedPaymentsMethods.push(newPayment);
             }
         });
 
-        const amount = currentAccount.isPaidWhitEft
-            ? currentAccount.eftAmount
-            : currentAccount.amount;
-
+        const amount = accountDoc.isPaidWhitEft ? accountDoc.eftAmount : accountDoc.amount;
         const status = amount - totalPaid === 0 || amount === 0 ? "paid" : "pending";
 
-        const updatedAccount = {
+        const updatedFields = {
             status,
             balance: amount - totalPaid,
-            eftBalance: currentAccount.eftAmount - totalPaid,
+            eftBalance: (accountDoc.eftAmount || 0) - totalPaid,
             paymentsMethods: mergedPaymentsMethods,
-            settleDate: format(new Date(), 'full'), // ✅ formato válido
-            amount: status === "paid" ? amount : currentAccount.amount,
-            eftAmount: status === "paid" ? amount : currentAccount.eftAmount,
+            settleDate: new Date(), // Podés formatear con date-fns si querés
+            amount: status === "paid" ? amount : accountDoc.amount,
+            eftAmount: status === "paid" ? amount : accountDoc.eftAmount,
         };
 
-        // ✅ Actualizar campos usando merge
-        await docRef.set(updatedAccount, { merge: true });
+        // Actualizar solo los campos modificados
+        await AccountModel.updateOne({ id: currentAccount.id }, { $set: updatedFields });
 
         response.setSuccess("Cuenta modificada con éxito");
 
     } catch (error: any) {
-        console.log(error);
+        console.error("Error actualizando cuenta:", error);
         response.setError(error.message);
     }
 
@@ -709,6 +699,9 @@ export const generateAccountPersonRepository = async (
     try {
         const companyName = getCompanyName();
         if (!companyName) throw new Error("Company name is not set");
+
+        // Seleccionar modelo según el tipo
+        const AccountModel = type === "studentsAccounts" ? getStudentsAccountsModel(companyName) : getTeachersAccountsModel(companyName);
 
         const accountId = uuidv4();
         const regularDiscount = getDiscount(person.discount, regularPrice);
@@ -739,18 +732,13 @@ export const generateAccountPersonRepository = async (
             isPaidWhitEft: type === "students" || type === "receipt",
         };
 
-        // Guardar la cuenta como documento individual
-        const docRef = db
-            .collection(companyName)
-            .doc(type)
-            .collection("accounts")
-            .doc(accountId);
-
-        await docRef.set(newAccount);
+        // Guardar la cuenta usando el modelo Mongo
+        const accountDoc = new AccountModel(newAccount);
+        await accountDoc.save();
 
         response.setSuccess("Cuenta creada con éxito");
     } catch (error: any) {
-        console.error(error);
+        console.error("Error creando cuenta:", error);
         response.setError(error.message);
     }
 
@@ -758,12 +746,11 @@ export const generateAccountPersonRepository = async (
 };
 
 
+
 export const generateAccountRepository = async (
     generateAccount: GenerateAccount
 ): Promise<ResponseMessages> => {
-    let response = new ResponseMessages()
-    const referenceSearch =
-        generateAccount.type === 'students' || generateAccount.type === 'receipt' ? 'studentsAccounts' : 'teachersAccounts';
+    const response = new ResponseMessages();
     const month = new Date().getMonth() + 1;
     const year = new Date().getFullYear();
 
@@ -771,9 +758,17 @@ export const generateAccountRepository = async (
         const companyName = getCompanyName();
         if (!companyName) throw new Error("Company name is not set");
 
-        const description = generateAccount.description || (generateAccount.type === 'students' ? 'Abono mensual' : 'Liquidacion mensual');
+        // Seleccionar modelo según tipo
+        const AccountModel =
+            generateAccount.type === 'students' || generateAccount.type === 'receipt'
+                ? getStudentsAccountsModel(companyName)
+                : getTeachersAccountsModel(companyName);
 
-        const newAccount = {
+        const description =
+            generateAccount.description ||
+            (generateAccount.type === 'students' ? 'Abono mensual' : 'Liquidación mensual');
+
+        const newAccount: IAccount = {
             id: uuidv4(),
             idPerson: generateAccount.personId,
             month,
@@ -787,45 +782,50 @@ export const generateAccountRepository = async (
             status: 'pending',
             settleDate: null,
             isPaidWhitEft: generateAccount.eftAmount < generateAccount.amount,
+            discounts: 0,
+            increase: 0,
         };
 
-        // Guardar la cuenta como documento individual
-        const docRef = db
-            .collection(companyName)
-            .doc(referenceSearch)
-            .collection("accounts")
-            .doc(newAccount.id);
+        // Guardar la cuenta usando el modelo Mongo
+        const accountDoc = new AccountModel(newAccount);
+        await accountDoc.save();
 
-        await docRef.set(newAccount);
-        response.setSuccess('Cuenta creada con exito');
+        response.setSuccess('Cuenta creada con éxito');
     } catch (error: any) {
+        console.error("Error creando cuenta:", error);
         response.setError(error.message);
-        return response
     }
+
     return response;
-}
+};
+
 
 export const saveAccounts = async (accounts: IAccount[]): Promise<ResponseMessages> => {
+    const response = new ResponseMessages();
 
-    let response = new ResponseMessages();
     try {
         const companyName = getCompanyName();
-        if (!companyName) throw new Error("Company name is not set");
-
-        const docRef = db.collection(companyName).doc('studentsAccounts');
-        const docSnap = await docRef.get();
-
-        if (!docSnap.exists) {
-            throw new Error("No se encontraron cuentas");
+        if (!companyName) {
+            response.setError("Company name is not set");
+            return response;
         }
 
-        await docRef.update({
-            studentsAccounts: accounts
-        })
-        console.log('Cuenta modificada con exito');
+        const StudentsAccountsModel = getStudentsAccountsModel(companyName);
+
+        // Guardar todas las cuentas (reemplazar existentes o insertarlas)
+        await Promise.all(accounts.map((account) =>
+            StudentsAccountsModel.findOneAndUpdate(
+                { id: account.id },
+                { $set: account },
+                { upsert: true, new: true }
+            )
+        ));
+
+        response.setSuccess("Cuentas guardadas con éxito");
     } catch (error: any) {
+        console.error("Error guardando cuentas:", error);
         response.setError(error.message);
-        return response
     }
+
     return response;
-}
+};

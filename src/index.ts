@@ -66,23 +66,27 @@ app.get("/api/company/setCompanyName", (req: any, res: any) => {
     return res.status(200).json(response);
 });
 
-app.use("/api/classes", RouteClasses)
-app.use("/api/activities", RouteActivities)
-app.use("/api/calendar", RouteCalendar)
-app.use("/api/assists", RouteAssists)
-app.use("/api/teachers", RouteTeachers)
-app.use("/api/students", RouteStudents)
-app.use("/api/accounts", RouteAccounts)
-app.use("/api/dashboard", RouteDashboard)
-app.use("/api/contactsActivities", RouteContactsActivities)
-app.use("/api/config", RouteConfig)
-app.use("/api/drawers", RouteDrawer)
-app.use("/api/contacts", RouteContacts)
-app.use("/api/boutique", RouteBoutique)
-app.use("/api/users", RouteUsers)
-app.use("/api/stats", RouteStats)
+connectDB().then(() => {
+    app.use("/api/classes", RouteClasses)
+    app.use("/api/activities", RouteActivities)
+    app.use("/api/calendar", RouteCalendar)
+    app.use("/api/assists", RouteAssists)
+    app.use("/api/teachers", RouteTeachers)
+    app.use("/api/students", RouteStudents)
+    app.use("/api/accounts", RouteAccounts)
+    app.use("/api/dashboard", RouteDashboard)
+    app.use("/api/contactsActivities", RouteContactsActivities)
+    app.use("/api/config", RouteConfig)
+    app.use("/api/drawers", RouteDrawer)
+    app.use("/api/contacts", RouteContacts)
+    app.use("/api/boutique", RouteBoutique)
+    app.use("/api/users", RouteUsers)
+    app.use("/api/stats", RouteStats)
 
-const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => console.log(`✅ Servidor en http://localhost:${PORT}`));
+    const PORT = process.env.PORT || 5000;
+    app.listen(PORT, () => console.log(`✅ Servidor en http://localhost:${PORT}`));
 
-// module.exports = serverless(app);
+    // module.exports = serverless(app);
+}).catch((err) => {
+    console.error("❌ Error al iniciar el servidor:", err);
+});

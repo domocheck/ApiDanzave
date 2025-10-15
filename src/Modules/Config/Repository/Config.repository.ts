@@ -11,6 +11,8 @@ import { getStudentsAccountsByStatus } from "../../Accounts/Repository/Accounts.
 import { getStudentsByStatus } from "../../Students/Repository/StudentsRepository";
 import { checkIsPriceUsedByStudent, checkIsPriceUsedByTeacher } from "../Helpers/Config.helper";
 import { NameAndId } from "../../Others/Models/Others";
+import { getConfigModel } from "../../../mongo/schemas/config.schema";
+
 
 export const getConfigRepository = async (): Promise<Config> => {
     let response = new Config();
@@ -20,29 +22,26 @@ export const getConfigRepository = async (): Promise<Config> => {
         if (!companyName) {
             throw new Error("Company name is not set");
         }
-        // Referencia al documento "classes" dentro de la colección de la compañía
-        const docRef = db.collection(companyName).doc("config");
 
-        // Obtener el documento
-        const docSnap = await docRef.get();
+        // Obtenemos el modelo dinámico para esa compañía
+        const ConfigModel = getConfigModel(companyName);
 
-        if (!docSnap.exists) {
+        // Buscamos el único documento de config
+        const configDoc = await ConfigModel.findOne({}).lean();
+
+        if (!configDoc) {
             return response;
         }
 
-        let config = docSnap.data();
-
-        if (!config) {
-            return response;
-        }
-        response.Items = config;
-
+        response.Items = configDoc;
         return response;
+
     } catch (error: any) {
         response.setError(error.message);
         return response;
     }
-}
+};
+
 
 export const getHoursFromConfigRepository = async (): Promise<ScheduleHours[]> => {
     let response = [] as ScheduleHours[];
@@ -52,17 +51,8 @@ export const getHoursFromConfigRepository = async (): Promise<ScheduleHours[]> =
         if (!companyName) {
             throw new Error("Company name is not set");
         }
-        // Referencia al documento "classes" dentro de la colección de la compañía
-        const docRef = db.collection(companyName).doc("config");
 
-        // Obtener el documento
-        const docSnap = await docRef.get();
-
-        if (!docSnap.exists) {
-            return response;
-        }
-
-        let configHours = docSnap.data()?.hours;
+        let configHours = (await getConfigRepository()).Items.hours;
 
         if (!Array.isArray(configHours)) {
             return response;
@@ -84,17 +74,13 @@ export const getExpirationDaysFromConfigRepository = async (): Promise<NameAndId
         if (!companyName) {
             throw new Error("Company name is not set");
         }
-        // Referencia al documento "classes" dentro de la colección de la compañía
-        const docRef = db.collection(companyName).doc("config");
 
-        // Obtener el documento
-        const docSnap = await docRef.get();
+        let expirationDays = (await getConfigRepository()).Items.expirationDays ?? 30;
 
-        if (!docSnap.exists) {
+        if (!expirationDays) {
             return response;
         }
-
-        return docSnap.data()?.expirationDays ?? 30;
+        return expirationDays as NameAndId[];
 
     } catch (error) {
         console.error("Error obteniendo horas:", error);
@@ -110,17 +96,9 @@ export const getRangesFromConfigRepository = async (): Promise<Ranges> => {
         if (!companyName) {
             throw new Error("Company name is not set");
         }
-        // Referencia al documento "classes" dentro de la colección de la compañía
-        const docRef = db.collection(companyName).doc("config");
 
-        // Obtener el documento
-        const docSnap = await docRef.get();
+        let configRanges = (await getConfigRepository()).Items.ranges;
 
-        if (!docSnap.exists) {
-            return response;
-        }
-
-        let configRanges = docSnap.data()?.ranges;
 
         if (!configRanges) {
             return response;
@@ -142,17 +120,9 @@ export const getReasonsFromConfigRepository = async (): Promise<Reasons[]> => {
         if (!companyName) {
             throw new Error("Company name is not set");
         }
-        // Referencia al documento "classes" dentro de la colección de la compañía
-        const docRef = db.collection(companyName).doc("config");
 
-        // Obtener el documento
-        const docSnap = await docRef.get();
+        let configReasons = (await getConfigRepository()).Items.reasons;
 
-        if (!docSnap.exists) {
-            return response;
-        }
-
-        let configReasons = docSnap.data()?.reasons;
 
         if (!configReasons) {
             return response;
@@ -174,17 +144,9 @@ export const getRolesFromConfigRepository = async (): Promise<string[]> => {
         if (!companyName) {
             throw new Error("Company name is not set");
         }
-        // Referencia al documento "classes" dentro de la colección de la compañía
-        const docRef = db.collection(companyName).doc("config");
 
-        // Obtener el documento
-        const docSnap = await docRef.get();
+        let configRoles = (await getConfigRepository()).Items.roles;
 
-        if (!docSnap.exists) {
-            return response;
-        }
-
-        let configRoles = docSnap.data()?.roles;
 
         if (!configRoles) {
             return response;
@@ -206,17 +168,9 @@ export const getReferencesFromConfigRepository = async (): Promise<Reference[]> 
         if (!companyName) {
             throw new Error("Company name is not set");
         }
-        // Referencia al documento "classes" dentro de la colección de la compañía
-        const docRef = db.collection(companyName).doc("config");
 
-        // Obtener el documento
-        const docSnap = await docRef.get();
+        let configReferences = (await getConfigRepository()).Items.references;
 
-        if (!docSnap.exists) {
-            return response;
-        }
-
-        let configReferences = docSnap.data()?.references;
 
         if (!configReferences) {
             return response;
@@ -238,22 +192,14 @@ export const getContactsMediaFromConfigRepository = async (): Promise<Reference[
         if (!companyName) {
             throw new Error("Company name is not set");
         }
-        // Referencia al documento "classes" dentro de la colección de la compañía
-        const docRef = db.collection(companyName).doc("config");
 
-        // Obtener el documento
-        const docSnap = await docRef.get();
+        let configContactMedia = (await getConfigRepository()).Items.contactMedia;
 
-        if (!docSnap.exists) {
+
+        if (!configContactMedia) {
             return response;
         }
-
-        let configContactsMedia = docSnap.data()?.contactMedia;
-
-        if (!configContactsMedia) {
-            return response;
-        }
-        response = configContactsMedia
+        response = configContactMedia
 
         return response;
     } catch (error) {
@@ -270,22 +216,13 @@ export const getPaymentsMethodsFromConfigRepository = async (): Promise<IPayment
         if (!companyName) {
             throw new Error("Company name is not set");
         }
-        // Referencia al documento "classes" dentro de la colección de la compañía
-        const docRef = db.collection(companyName).doc("config");
 
-        // Obtener el documento
-        const docSnap = await docRef.get();
+        let configPaymentMethods = (await getConfigRepository()).Items.paymentsMethods;
 
-        if (!docSnap.exists) {
+        if (!configPaymentMethods) {
             return response;
         }
-
-        let paymentMethods = docSnap.data()?.paymentsMethods;
-
-        if (!paymentMethods) {
-            return response;
-        }
-        response = paymentMethods
+        response = configPaymentMethods
 
         return response;
     } catch (error) {
@@ -296,7 +233,7 @@ export const getPaymentsMethodsFromConfigRepository = async (): Promise<IPayment
 
 export const getMontlyByTeacherId = async (teacherId: string): Promise<number> => {
 
-    const teacherMontly = (await getTeacherById(teacherId)).monthly;
+    const teacherMontly = (await getTeacherById(teacherId))?.monthly;
 
     let response = 0;
     try {
@@ -305,22 +242,18 @@ export const getMontlyByTeacherId = async (teacherId: string): Promise<number> =
         if (!companyName) {
             throw new Error("Company name is not set");
         }
-        // Referencia al documento "classes" dentro de la colección de la compañía
-        const docRef = db.collection(companyName).doc("config");
 
-        // Obtener el documento
-        const docSnap = await docRef.get();
+        let configTeachersPrice = (await getConfigRepository()).Items.teachersPrice;
 
-        if (!docSnap.exists) {
+
+        if (!configTeachersPrice) {
             return response;
         }
 
-        let teachersPrice: Price[] = docSnap.data()?.teachersPrice;
-
-        if (!teachersPrice) {
+        if (!configTeachersPrice) {
             return response;
         }
-        response = teachersPrice.find(tp => tp.id === teacherMontly)?.regularPrice || 0
+        response = configTeachersPrice.find(tp => tp.id === teacherMontly)?.regularPrice || 0
 
         return response;
     } catch (error) {
@@ -338,17 +271,9 @@ export const getCategoriesProductsFromConfigRepository = async (): Promise<Items
         if (!companyName) {
             throw new Error("Company name is not set");
         }
-        // Referencia al documento "classes" dentro de la colección de la compañía
-        const docRef = db.collection(companyName).doc("config");
 
-        // Obtener el documento
-        const docSnap = await docRef.get();
+        let configCategories = (await getConfigRepository()).Items.categoriesProducts;
 
-        if (!docSnap.exists) {
-            return response;
-        }
-
-        let configCategories = docSnap.data()?.categoriesProducts;
 
         if (!configCategories) {
             return response;
@@ -370,17 +295,9 @@ export const getSizesProductsFromConfigRepository = async (): Promise<ItemsConfi
         if (!companyName) {
             throw new Error("Company name is not set");
         }
-        // Referencia al documento "classes" dentro de la colección de la compañía
-        const docRef = db.collection(companyName).doc("config");
 
-        // Obtener el documento
-        const docSnap = await docRef.get();
+        let configSizes = (await getConfigRepository()).Items.sizesProducts;
 
-        if (!docSnap.exists) {
-            return response;
-        }
-
-        let configSizes = docSnap.data()?.sizesProducts;
 
         if (!configSizes) {
             return response;
@@ -402,22 +319,14 @@ export const getColorsProductsFromConfigRepository = async (): Promise<ItemsConf
         if (!companyName) {
             throw new Error("Company name is not set");
         }
-        // Referencia al documento "classes" dentro de la colección de la compañía
-        const docRef = db.collection(companyName).doc("config");
 
-        // Obtener el documento
-        const docSnap = await docRef.get();
+        let configColorsProducts = (await getConfigRepository()).Items.colorsProducts;
 
-        if (!docSnap.exists) {
+
+        if (!configColorsProducts) {
             return response;
         }
-
-        let configColors = docSnap.data()?.colorsProducts;
-
-        if (!configColors) {
-            return response;
-        }
-        response = configColors
+        response = configColorsProducts
 
         return response;
     } catch (error) {
@@ -434,22 +343,18 @@ export const getCategoryByIdFromConfigRepository = async (categoryId: string): P
         if (!companyName) {
             throw new Error("Company name is not set");
         }
-        // Referencia al documento "classes" dentro de la colección de la compañía
-        const docRef = db.collection(companyName).doc("config");
 
-        // Obtener el documento
-        const docSnap = await docRef.get();
+        const ConfigModel = getConfigModel(companyName);
 
-        if (!docSnap.exists) {
+        // Como solo hay un documento, buscamos por _id "config" y solo traemos el array reasons
+        const configDoc = await ConfigModel.findById("config", { categoriesProducts: 1 }).lean();
+
+        if (!configDoc || !Array.isArray(configDoc.categoriesProducts)) {
             return response;
         }
 
-        let configCategories = docSnap.data()?.categoriesProducts.find((c: ItemsConfig) => c.id === categoryId);
-
-        if (!configCategories) {
-            return response;
-        }
-        response = configCategories
+        // Buscamos la reason dentro del array
+        return configDoc.categoriesProducts.find(r => r.id === categoryId)!;
 
         return response;
     } catch (error) {
@@ -462,28 +367,21 @@ export const getReasonByIdRepository = async (reasonId: string): Promise<Reasons
     let response = {} as Reasons;
     try {
         const companyName = getCompanyName();
-
         if (!companyName) {
             throw new Error("Company name is not set");
         }
-        // Referencia al documento "classes" dentro de la colección de la compañía
-        const docRef = db.collection(companyName).doc("config");
 
-        // Obtener el documento
-        const docSnap = await docRef.get();
+        const ConfigModel = getConfigModel(companyName);
 
-        if (!docSnap.exists) {
+        // Como solo hay un documento, buscamos por _id "config" y solo traemos el array reasons
+        const configDoc = await ConfigModel.findById("config", { reasons: 1 }).lean();
+
+        if (!configDoc || !Array.isArray(configDoc.reasons)) {
             return response;
         }
 
-        let configReasons = docSnap.data()?.reasons.find((r: Reasons) => r.id === reasonId);
-
-        if (!configReasons) {
-            return response;
-        }
-        response = configReasons
-
-        return response;
+        // Buscamos la reason dentro del array
+        return configDoc.reasons.find(r => r.id === reasonId)!;
     } catch (error) {
         console.error("Error obteniendo rangos:", error);
         return response;
@@ -498,22 +396,14 @@ export const getLimit = async (): Promise<number> => {
         if (!companyName) {
             throw new Error("Company name is not set");
         }
-        // Referencia al documento "classes" dentro de la colección de la compañía
-        const docRef = db.collection(companyName).doc("config");
 
-        // Obtener el documento
-        const docSnap = await docRef.get();
+        let quantityPages = (await getConfigRepository()).Items.quantityPagesToSee;
 
-        if (!docSnap.exists) {
+
+        if (!quantityPages) {
             return response;
         }
-
-        let quantityPagesToSee = docSnap.data()?.quantityPagesToSee;
-
-        if (!quantityPagesToSee) {
-            return response;
-        }
-        response = quantityPagesToSee
+        response = quantityPages
 
         return response;
     } catch (error) {
@@ -530,17 +420,16 @@ export const getStudentsPricesRepository = async (): Promise<Price[]> => {
         if (!companyName) {
             throw new Error("Company name is not set");
         }
-        // Referencia al documento "classes" dentro de la colección de la compañía
-        const docRef = db.collection(companyName).doc("config");
+        const ConfigModel = getConfigModel(companyName);
 
-        // Obtener el documento
-        const docSnap = await docRef.get();
+        // Como solo hay un documento, buscamos por _id "config" y solo traemos el array reasons
+        const configDoc = await ConfigModel.findById("config", { studentsPrice: 1 }).lean();
 
-        if (!docSnap.exists) {
+        if (!configDoc || !Array.isArray(configDoc.studentsPrice)) {
             return response;
         }
 
-        let studentsPrice: Price[] = docSnap.data()?.studentsPrice.map((price: Price) => {
+        let studentsPrice: Price[] = configDoc.studentsPrice.map((price: Price) => {
             return {
                 ...price,
                 displayName: `${price.name} - $${price.regularPrice}`,
@@ -564,16 +453,16 @@ export const getStudentsPricesByStatusRepository = async (status: string): Promi
             throw new Error("Company name is not set");
         }
         // Referencia al documento "classes" dentro de la colección de la compañía
-        const docRef = db.collection(companyName).doc("config");
+        const ConfigModel = getConfigModel(companyName);
 
-        // Obtener el documento
-        const docSnap = await docRef.get();
+        // Como solo hay un documento, buscamos por _id "config" y solo traemos el array reasons
+        const configDoc = await ConfigModel.findById("config", { studentsPrice: 1 }).lean();
 
-        if (!docSnap.exists) {
+        if (!configDoc || !Array.isArray(configDoc.studentsPrice)) {
             return response;
         }
 
-        let studentsPrice: Price[] = docSnap.data()?.studentsPrice.filter((p: Price) => p.status === status).map((price: Price) => {
+        let studentsPrice: Price[] = configDoc.studentsPrice.filter((p: Price) => p.status === status).map((price: Price) => {
             return {
                 ...price,
                 displayName: `${price.name} - $${price.regularPrice}`,
@@ -596,17 +485,16 @@ export const getTeachersPricesRepository = async (): Promise<Price[]> => {
         if (!companyName) {
             throw new Error("Company name is not set");
         }
-        // Referencia al documento "classes" dentro de la colección de la compañía
-        const docRef = db.collection(companyName).doc("config");
 
-        // Obtener el documento
-        const docSnap = await docRef.get();
+        const ConfigModel = getConfigModel(companyName);
 
-        if (!docSnap.exists) {
+        // Como solo hay un documento, buscamos por _id "config" y solo traemos el array reasons
+        const configDoc = await ConfigModel.findById("config", { teachersPrice: 1 }).lean();
+
+        if (!configDoc || !Array.isArray(configDoc.teachersPrice)) {
             return response;
         }
-
-        let teachersPrice: Price[] = docSnap.data()?.teachersPrice.map((price: Price) => {
+        let teachersPrice: Price[] = configDoc.teachersPrice.map((price: Price) => {
             return {
                 ...price,
                 displayName: `${price.name} - $${price.regularPrice}`,
@@ -629,17 +517,16 @@ export const getTeachersPricesByStatusRepository = async (status: string): Promi
         if (!companyName) {
             throw new Error("Company name is not set");
         }
-        // Referencia al documento "classes" dentro de la colección de la compañía
-        const docRef = db.collection(companyName).doc("config");
+        const ConfigModel = getConfigModel(companyName);
 
-        // Obtener el documento
-        const docSnap = await docRef.get();
+        // Como solo hay un documento, buscamos por _id "config" y solo traemos el array reasons
+        const configDoc = await ConfigModel.findById("config", { teachersPrice: 1 }).lean();
 
-        if (!docSnap.exists) {
+        if (!configDoc || !Array.isArray(configDoc.teachersPrice)) {
             return response;
         }
 
-        let teachersPrice: Price[] = docSnap.data()?.teachersPrice.filter((p: Price) => p.status === status).map((price: Price) => {
+        let teachersPrice: Price[] = configDoc.teachersPrice.filter((p: Price) => p.status === status).map((price: Price) => {
             return {
                 ...price,
                 displayName: `${price.name} - $${price.regularPrice}`,
@@ -656,88 +543,97 @@ export const getTeachersPricesByStatusRepository = async (status: string): Promi
 
 export const checkAndSaveReference = async (referenceName: string): Promise<Reference> => {
     let response = {} as Reference;
+
     try {
         const companyName = getCompanyName();
-
         if (!companyName) {
             throw new Error("Company name is not set");
         }
-        // Referencia al documento "classes" dentro de la colección de la compañía
-        const docRef = db.collection(companyName).doc("config");
 
-        // Obtener el documento
-        const docSnap = await docRef.get();
+        const ConfigModel = getConfigModel(companyName);
 
-        if (!docSnap.exists) {
+        // Obtenemos solo el array references del documento de configuración
+        const configDoc = await ConfigModel.findById("config", { references: 1 });
+
+        if (!configDoc) {
             return response;
         }
 
-        let configReferences = docSnap.data()?.references;
-
-        if (!configReferences) {
-            return response;
+        // Aseguramos que exista el array
+        if (!Array.isArray(configDoc.references)) {
+            configDoc.references = [];
         }
-        const currentReference = configReferences.find((r: Reference) => r.id === referenceName);
+
+        // Buscamos si ya existe la referencia
+        const currentReference = configDoc.references.find(r => r.name === referenceName);
+
         if (!currentReference) {
-            const newReference = {
+            // Creamos una nueva referencia
+            const newReference: Reference = {
                 id: uuidv4(),
-                name: referenceName,
-            }
-            configReferences.push(newReference);
-            await docRef.update({
-                references: configReferences
-            })
+                name: referenceName
+            };
+
+            // Agregamos al array y guardamos
+            configDoc.references.push(newReference);
+            await configDoc.save();
+
             response = newReference;
         } else {
-            response = currentReference
+            response = currentReference;
         }
 
         return response;
+
     } catch (error: any) {
         throw new Error(error.message);
     }
+};
 
-}
 
 export const checkAndSaveContactMedia = async (contactMediaName: string): Promise<Reference> => {
     let response = {} as Reference;
     try {
         const companyName = getCompanyName();
-
         if (!companyName) {
             throw new Error("Company name is not set");
         }
-        // Referencia al documento "classes" dentro de la colección de la compañía
-        const docRef = db.collection(companyName).doc("config");
 
-        // Obtener el documento
-        const docSnap = await docRef.get();
+        const ConfigModel = getConfigModel(companyName);
 
-        if (!docSnap.exists) {
+        // Obtenemos solo el array references del documento de configuración
+        const configDoc = await ConfigModel.findById("config", { contactMedia: 1 });
+
+        if (!configDoc) {
             return response;
         }
 
-        let configContactsMedia = docSnap.data()?.contactMedia;
-
-        if (!configContactsMedia) {
-            return response;
+        // Aseguramos que exista el array
+        if (!Array.isArray(configDoc.contactMedia)) {
+            configDoc.contactMedia = [];
         }
-        const currentContactMedia = configContactsMedia.find((r: Reference) => r.id === contactMediaName);
-        if (!currentContactMedia) {
-            const newContactMedia = {
+
+        // Buscamos si ya existe la referencia
+        const currentReference = configDoc.contactMedia.find(r => r.name === contactMediaName);
+
+        if (!currentReference) {
+            // Creamos una nueva referencia
+            const newReference: Reference = {
                 id: uuidv4(),
-                name: contactMediaName,
-            }
-            configContactsMedia.push(newContactMedia);
-            await docRef.update({
-                contactMedia: configContactsMedia
-            })
-            response = newContactMedia;
+                name: contactMediaName
+            };
+
+            // Agregamos al array y guardamos
+            configDoc.contactMedia.push(newReference);
+            await configDoc.save();
+
+            response = newReference;
         } else {
-            response = currentContactMedia
+            response = currentReference;
         }
 
         return response;
+
     } catch (error: any) {
         throw new Error(error.message);
     }
@@ -776,36 +672,37 @@ export const saveReferenceRepository = async (id: string, value: string, type: s
         const companyName = getCompanyName();
         if (!companyName) throw new Error("Company name is not set");
 
-        const docRef = db.collection(companyName).doc("config");
-        const docSnap = await docRef.get();
+        // Buscar el documento de configuración de la empresa
+        const configDoc = await getConfigModel(companyName).findOne();
+        if (!configDoc) throw new Error("No se encontró la configuración");
 
-        if (!docSnap.exists) {
-            throw new Error("No se encontro el nombre");
-        }
-
-        const data: Reference[] = docSnap.data()?.[type] ?? [];
-
-        if (!data) {
-            response.setError("No se encontro el item");
+        // Accedemos al arreglo correspondiente (ej: configDoc.brands o configDoc.categories)
+        const data = (configDoc as any)[type];
+        if (!Array.isArray(data)) {
+            response.setError("No se encontró el tipo especificado en la configuración");
             return response;
         }
 
-        const index = data.findIndex((s: Reference) => s.id === id);
+        // Buscar si ya existe el elemento
+        const index = data.findIndex((ref) => ref.id === id);
 
         if (index !== -1) {
-            data.splice(index, 1, { name: value, id });
+            // Si existe, actualizar el nombre
+            data[index].name = value;
         } else {
-            data.unshift({ name: value, id: uuidv4() });
+            // Si no existe, agregar uno nuevo al principio
+            data.unshift({ id: uuidv4(), name: value });
         }
 
-        await docRef.update({ [type]: data });
-        response.setSuccess("Configuración actualizada correctamente");
+        // Guardar los cambios en la base de datos
+        await configDoc.save();
 
+        response.setSuccess("Configuración actualizada correctamente");
     } catch (error: any) {
         response.setError(error.message);
-        return response;
     }
-    return response
+
+    return response;
 }
 
 export const saveItemsToSeeRepository = async (quantity: number): Promise<ResponseMessages> => {
@@ -814,30 +711,26 @@ export const saveItemsToSeeRepository = async (quantity: number): Promise<Respon
         const companyName = getCompanyName();
         if (!companyName) throw new Error("Company name is not set");
 
-        const docRef = db.collection(companyName).doc("config");
-        const docSnap = await docRef.get();
+        const ConfigModel = getConfigModel(companyName);
 
-        if (!docSnap.exists) {
-            throw new Error("No se encontro el nombre");
-        }
+        // Actualiza solo el campo 'quantityPagesToSee'
+        const updatedDoc = await ConfigModel.findByIdAndUpdate(
+            "config", // si usás companyName como identificador: { companyName }
+            { quantityPagesToSee: quantity },
+            { new: true } // devuelve el documento actualizado
+        );
 
-        let quantityPagesToSee: number = docSnap.data()?.quantityPagesToSee;
-
-        if (!quantityPagesToSee) {
-            response.setError("No se encontro el item");
+        if (!updatedDoc) {
+            response.setError("No se encontró el documento de configuración");
             return response;
         }
 
-        quantityPagesToSee = quantity
-        await docRef.update({ quantityPagesToSee });
         response.setSuccess("Configuración actualizada correctamente");
-
-
     } catch (error: any) {
         response.setError(error.message);
-        return response;
     }
-    return response
+
+    return response;
 }
 
 export const savePaymentMethodRepository = async (paymentName: string, paymentId: string): Promise<ResponseMessages> => {
@@ -846,37 +739,43 @@ export const savePaymentMethodRepository = async (paymentName: string, paymentId
         const companyName = getCompanyName();
         if (!companyName) throw new Error("Company name is not set");
 
-        const docRef = db.collection(companyName).doc("config");
-        const docSnap = await docRef.get();
+        const ConfigModel = getConfigModel(companyName);
 
-        if (!docSnap.exists) {
-            throw new Error("No se encontro el nombre");
-        }
+        // Buscar el documento de configuración
+        const configDoc = await ConfigModel.findById("config"); // o findOne({ companyName }) si tu modelo lo usa
 
-        let paymentMethods: IPayments[] = docSnap.data()?.paymentsMethods;
-
-        if (!paymentMethods) {
-            response.setError("No se encontro el item");
+        if (!configDoc) {
+            response.setError("No se encontró el documento de configuración");
             return response;
         }
 
-        const index = paymentMethods.findIndex((s: IPayments) => s.id === paymentId);
+        // Obtener el array de métodos de pago
+        let paymentMethods: IPayments[] = configDoc.paymentsMethods || [];
 
-        if (index !== -1) {
-            paymentMethods.splice(index, 1, { name: paymentName, id: paymentId });
+        // Buscar si ya existe el paymentId
+        if (paymentId) {
+            const index = paymentMethods.findIndex((p) => p.id === paymentId);
+            if (index !== -1) {
+                paymentMethods[index].name = paymentName; // actualizar
+            } else {
+                paymentMethods.unshift({ id: paymentId, name: paymentName }); // agregar
+            }
         } else {
-            paymentMethods.unshift({ name: paymentName, id: uuidv4() });
+            // Si no hay paymentId, crear uno nuevo
+            paymentMethods.unshift({ id: uuidv4(), name: paymentName });
         }
 
-        await docRef.update({ paymentsMethods: paymentMethods });
-        response.setSuccess("Configuración actualizada correctamente");
+        // Guardar cambios
+        configDoc.paymentsMethods = paymentMethods;
+        await configDoc.save();
 
+        response.setSuccess("Configuración actualizada correctamente");
     } catch (error: any) {
         response.setError(error.message);
-        return response;
     }
-    return response
-}
+
+    return response;
+};
 
 export const saveRangeHoursRepository = async (index: number, initialHour: number, finalHour: number): Promise<ResponseMessages> => {
     const response = new ResponseMessages();
@@ -884,32 +783,40 @@ export const saveRangeHoursRepository = async (index: number, initialHour: numbe
         const companyName = getCompanyName();
         if (!companyName) throw new Error("Company name is not set");
 
-        const docRef = db.collection(companyName).doc("config");
-        const docSnap = await docRef.get();
+        const ConfigModel = getConfigModel(companyName);
 
-        if (!docSnap.exists) {
-            throw new Error("No se encontro el nombre");
-        }
+        // Buscar documento de configuración
+        const configDoc = await ConfigModel.findById("config"); // o findOne({ companyName })
 
-        let hours: ScheduleHours[] = docSnap.data()?.hours;
-
-        if (!hours) {
-            response.setError("No se encontro el item");
+        if (!configDoc) {
+            response.setError("No se encontró el documento de configuración");
             return response;
         }
 
+        // Obtener el array de horas
+        const hours: ScheduleHours[] = configDoc.hours || [];
+
+        // Validar que el índice exista
+        if (index < 0 || index >= hours.length) {
+            response.setError("Índice fuera de rango");
+            return response;
+        }
+
+        // Actualizar las horas
         hours[index].initialHour = initialHour;
         hours[index].finalHour = finalHour;
 
-        await docRef.update({ hours });
-        response.setSuccess("Configuración actualizada correctamente");
+        // Guardar cambios
+        configDoc.hours = hours;
+        await configDoc.save();
 
+        response.setSuccess("Configuración actualizada correctamente");
     } catch (error: any) {
         response.setError(error.message);
-        return response;
     }
-    return response
-}
+
+    return response;
+};
 
 export const saveRangeStudentsRepository = async (value: number, range: keyof Ranges): Promise<ResponseMessages> => {
     const response = new ResponseMessages();
@@ -917,14 +824,19 @@ export const saveRangeStudentsRepository = async (value: number, range: keyof Ra
         const companyName = getCompanyName();
         if (!companyName) throw new Error("Company name is not set");
 
-        const docRef = db.collection(companyName).doc("config");
-        const docSnap = await docRef.get();
+        const ConfigModel = getConfigModel(companyName);
 
-        if (!docSnap.exists) {
-            throw new Error("No se encontro el nombre");
+        // Buscar documento de configuración
+        const configDoc = await ConfigModel.findById("config"); // o findOne({ companyName })
+
+        if (!configDoc) {
+            response.setError("No se encontró el documento de configuración");
+            return response;
         }
 
-        let ranges: Ranges = docSnap.data()?.ranges;
+        // Obtener el array de horas
+        const ranges: Ranges = configDoc.ranges || {} as Ranges;
+
 
         if (!ranges) {
             response.setError("No se encontro el item");
@@ -933,7 +845,7 @@ export const saveRangeStudentsRepository = async (value: number, range: keyof Ra
 
         ranges[range] = value;
 
-        await docRef.update({ ranges });
+        await configDoc.save();
         response.setSuccess("Configuración actualizada correctamente");
 
     } catch (error: any) {
@@ -949,14 +861,18 @@ export const savePriceRepository = async (price: Price, type: string): Promise<R
         const companyName = getCompanyName();
         if (!companyName) throw new Error("Company name is not set");
 
-        const docRef = db.collection(companyName).doc("config");
-        const docSnap = await docRef.get();
+        const ConfigModel = getConfigModel(companyName);
 
-        if (!docSnap.exists) {
-            throw new Error("No se encontro el nombre");
+        // Buscar documento de configuración
+        const configDoc = await ConfigModel.findById("config");
+
+        if (!configDoc) {
+            response.setError("No se encontró el documento de configuración");
+            return response;
         }
 
-        let pricesData: Price[] = docSnap.data()?.[type];
+        // Obtener el array de horas
+        const pricesData: Price[] = (configDoc as any)[type] || [];
 
         if (!pricesData) {
             response.setError("No se encontro el item");
@@ -971,7 +887,7 @@ export const savePriceRepository = async (price: Price, type: string): Promise<R
             pricesData.unshift(price);
         }
 
-        await docRef.update({ [type]: pricesData });
+        await configDoc.save();
         response.setSuccess("Configuración actualizada correctamente");
 
     } catch (error: any) {
@@ -989,15 +905,19 @@ export const getPagedListPricesRepository = async (search: SearchPagedListPrices
         if (!companyName) {
             throw new Error("Company name is not set");
         }
-        const docRef = db.collection(companyName).doc("config");
-        const docSnap = await docRef.get();
 
-        if (!docSnap.exists) {
-            response.setWarning("No se encontraron configuraciones");
+        const ConfigModel = getConfigModel(companyName);
+
+        // Buscar documento de configuración
+        const configDoc = await ConfigModel.findById("config");
+
+        if (!configDoc) {
+            response.setError("No se encontró el documento de configuración");
             return response;
         }
 
-        let pricesData: Price[] = docSnap.data()?.[search.Type];
+        // Obtener el array de horas
+        let pricesData: Price[] = (configDoc as any)[search.Type] || [];
 
         if (!Array.isArray(pricesData)) {
             response.setError("No se encontraron precios válidos");
@@ -1044,14 +964,18 @@ export const changeStatusPriceRepository = async (priceId: string, type: string)
         const companyName = getCompanyName();
         if (!companyName) throw new Error("Company name is not set");
 
-        const docRef = db.collection(companyName).doc("config");
-        const docSnap = await docRef.get();
+        const ConfigModel = getConfigModel(companyName);
 
-        if (!docSnap.exists) {
-            throw new Error("No se encontro el nombre");
+        // Buscar documento de configuración
+        const configDoc = await ConfigModel.findById("config");
+
+        if (!configDoc) {
+            response.setError("No se encontró el documento de configuración");
+            return response;
         }
 
-        const prices: Price[] = docSnap.data()?.[type] ?? [];
+        // Obtener el array de horas
+        let prices: Price[] = (configDoc as any)[type] || [];
 
         const price = prices.find((s: Price) => s.id === priceId);
 
@@ -1078,7 +1002,7 @@ export const changeStatusPriceRepository = async (priceId: string, type: string)
             }
         }
 
-        await docRef.update({ [type]: prices });
+        await configDoc.save();
 
         response.setSuccess("Estudiante actualizado correctamente");
 
