@@ -69,5 +69,5 @@ app.use("/api/users", RouteUsers)
 app.use("/api/stats", RouteStats)
 
 
-export const handler = serverlessHttp(app);
+export default app;
 
