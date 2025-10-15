@@ -1,13 +1,11 @@
-import express, { application, Request, Response } from "express";
+// src/index.ts
+import express from "express";
 import cors from "cors";
-import { db } from "./Firebase/firebase";
-import { Classes } from "./Modules/Classes/Models/classes.models";
-import { getClasses } from "./Modules/Classes/Controller/Classes.controller";
+import serverless from "serverless-http";
+
 import { RouteClasses } from "./Modules/Classes/Routes/Classes.routes";
 import { RouteActivities } from "./Modules/Activities/Routes/Activities.routes";
 import { RouteCalendar } from "./Modules/Others/Routes/Calendar.routes";
-import { CompanyNameSingleton } from "./Modules/Others/Models/Companies";
-import { ResponseMessages } from "./Modules/Others/Models/ResponseMessages";
 import { RouteAssists } from "./Modules/Assists/Routes/Assists.Routes";
 import { RouteTeachers } from "./Modules/Teachers/Routes/Teachers.routes";
 import { RouteStudents } from "./Modules/Students/Routes/Students.routes";
@@ -20,22 +18,34 @@ import { RouteContacts } from "./Modules/Contacts/Routes/Contacats.routes";
 import { RouteBoutique } from "./Modules/Boutique/Routes/Boutique.routes";
 import { RouteUsers } from "./Modules/Users/Routes/User.routes";
 import { RouteStats } from "./Modules/Others/Routes/Stats.routes";
+
+import { ResponseMessages } from "./Modules/Others/Models/ResponseMessages";
+import { CompanyNameSingleton } from "./Modules/Others/Models/Companies";
+
 import connectDB, { getConnection } from "./mongo/connectDB";
-import serverlessHttp from "serverless-http";
 
 const app = express();
+
+// Middlewares
 app.use(cors());
 app.use(express.json());
 
+// Middleware para asegurar la conexión a MongoDB antes de cualquier request
 app.use(async (req, res, next) => {
-    if (!getConnection()?.readyState) {
-        console.log("Conectando a la base de datos...");
-        await connectDB();
-        console.log("Conexión a DB establecida");
+    try {
+        if (!getConnection()?.readyState) {
+            console.log("Conectando a la base de datos...");
+            await connectDB();
+            console.log("Conexión a DB establecida");
+        }
+        next();
+    } catch (error) {
+        console.error("Error conectando a MongoDB:", error);
+        res.status(500).json({ error: "Error interno del servidor" });
     }
-    next();
 });
 
+// Rutas
 app.get("/api/company/setCompanyName", (req: any, res: any) => {
     const response = new ResponseMessages();
     const companyName = req.query.companyName as string;
@@ -52,22 +62,21 @@ app.get("/api/company/setCompanyName", (req: any, res: any) => {
     return res.status(200).json(response);
 });
 
-app.use("/api/classes", RouteClasses)
-app.use("/api/activities", RouteActivities)
-app.use("/api/calendar", RouteCalendar)
-app.use("/api/assists", RouteAssists)
-app.use("/api/teachers", RouteTeachers)
-app.use("/api/students", RouteStudents)
-app.use("/api/accounts", RouteAccounts)
-app.use("/api/dashboard", RouteDashboard)
-app.use("/api/contactsActivities", RouteContactsActivities)
-app.use("/api/config", RouteConfig)
-app.use("/api/drawers", RouteDrawer)
-app.use("/api/contacts", RouteContacts)
-app.use("/api/boutique", RouteBoutique)
-app.use("/api/users", RouteUsers)
-app.use("/api/stats", RouteStats)
+app.use("/api/classes", RouteClasses);
+app.use("/api/activities", RouteActivities);
+app.use("/api/calendar", RouteCalendar);
+app.use("/api/assists", RouteAssists);
+app.use("/api/teachers", RouteTeachers);
+app.use("/api/students", RouteStudents);
+app.use("/api/accounts", RouteAccounts);
+app.use("/api/dashboard", RouteDashboard);
+app.use("/api/contactsActivities", RouteContactsActivities);
+app.use("/api/config", RouteConfig);
+app.use("/api/drawers", RouteDrawer);
+app.use("/api/contacts", RouteContacts);
+app.use("/api/boutique", RouteBoutique);
+app.use("/api/users", RouteUsers);
+app.use("/api/stats", RouteStats);
 
-
-export default app;
-
+// Exportar la app como función serverless
+export const handler = serverless(app);
