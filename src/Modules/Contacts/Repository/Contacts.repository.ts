@@ -183,14 +183,13 @@ export const saveContactRepository = async (contact: IContacts): Promise<Respons
         const companyName = getCompanyName();
         if (!companyName) throw new Error("Company name is not set");
 
-        // Referencia al nuevo documento del movimiento dentro de la subcolección
-        const contactRef = db
-            .collection(companyName)
-            .doc("contacts")
-            .collection("contacts")
-            .doc(contact.id); // Asegúrate de que movement.id esté definido y sea único
+        const contactModel = getContactsModel(companyName);
 
-        await contactRef.set(contact);
+        await contactModel.updateOne(
+            { id: contact.id },
+            { $set: contact },
+            { upsert: true }
+        );
 
         response.setSuccess("contacto guardado con éxito");
     } catch (error: any) {
