@@ -151,7 +151,7 @@ export const getPagedListContactsActivitiesRepository = async (
 
         // Traemos los documentos paginados
         let activities = await ContactsActivitiesModel.find(filter)
-            .sort({ id: 1 })
+            .sort({ dateCreated: -1 })
             .skip(skip)
             .limit(limit)
             .lean();
