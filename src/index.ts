@@ -31,7 +31,9 @@ app.use(cors());
 app.use(express.json());
 
 // Middleware para asegurar la conexión a MongoDB antes de cualquier request
-
+connectDB().catch(err => {
+    console.error("❌ No se pudo conectar a MongoDB:", err);
+});
 
 // Rutas
 app.get("/api/company/setCompanyName", (req: any, res: any) => {
@@ -71,8 +73,5 @@ app.use("/api/stats", RouteStats);
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-    connectDB().catch(err => {
-        console.error("❌ No se pudo conectar a MongoDB:", err);
-    });
     console.log(`Server running on port ${PORT}`);
 });
