@@ -151,7 +151,7 @@ export const getPagedListContactsActivitiesRepository = async (
 
         // Traemos los documentos paginados
         let activities = await ContactsActivitiesModel.find(filter)
-            .sort({ dateCreated: -1 })
+            .sort({ id: 1 })
             .skip(skip)
             .limit(limit)
             .lean();
@@ -236,7 +236,7 @@ export const getPagedListContactsActivitiesRepository = async (
         }
 
         // Mapear a respuesta final
-        response.Items = activitiesData.map((s: any) => ({
+        response.Items = activitiesData.reverse().map((s: any) => ({
             id: s.activityId,
             status: s.status,
             fullName: `${s.name} ${s.lastName}`,
