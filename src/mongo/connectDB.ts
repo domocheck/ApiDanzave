@@ -11,6 +11,7 @@ const connectDB = async (): Promise<Connection> => {
     }
 
     const uri = process.env.DB_URL;
+    console.log(uri)
     if (!uri) {
         console.error("❌ No se encontró la variable de entorno DB_URL");
         process.exit(1);
