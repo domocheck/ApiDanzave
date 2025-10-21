@@ -9,6 +9,7 @@ import { checkStatusActivity } from "../Helpers/Contacts-activities.helpers";
 import { PagedListContactsActivities, SearchContactsActivities } from "../Models/Contacts-activities-paged-list.models";
 import { getContactById } from "../../Contacts/Controller/Contacts.controller";
 import { getContactsActivitiesModel } from "../../../mongo/schemas/contactsActivities.schema";
+import { convertirFechaInglesAEspanol, formatDateToDate } from "../../Others/Helpers/FormatDateToDate";
 
 export const getContactsActivitiesRepository = async (): Promise<IContactsActivities[]> => {
     try {
@@ -79,7 +80,7 @@ export const saveActivityRepository = async (
         if (!companyName) throw new Error("Company name is not set");
 
         const ContactsActivitiesModel = getContactsActivitiesModel(companyName);
-
+        activity.dateFormat = formatDateToDate(activity.nextContactDate as string);
         // Actualiza si existe o crea un nuevo documento
         await ContactsActivitiesModel.updateOne(
             { id: activity.id },
@@ -90,6 +91,54 @@ export const saveActivityRepository = async (
         response.setSuccess("Actividad guardada con éxito");
     } catch (error: any) {
         console.error("Error guardando actividad:", error);
+        response.setError(error.message || "Error interno del servidor");
+    }
+
+    return response;
+};
+
+export const updateActivitiesWithDateFormatRepository = async (): Promise<ResponseMessages> => {
+    const response = new ResponseMessages();
+
+    try {
+        const companyName = 'Juvet';
+        if (!companyName) throw new Error("Company name is not set");
+
+        const ContactsActivitiesModel = getContactsActivitiesModel(companyName);
+
+        // Obtener todas las actividades
+        const activities = await ContactsActivitiesModel.find().lean();
+
+        if (!activities.length) {
+            response.setWarning("No se encontraron actividades para actualizar");
+            return response;
+        }
+
+        let updatedCount = 0;
+
+        // Procesar cada actividad
+        for (const act of activities) {
+            const { nextContactDate, dateCreated, updateDate } = act;
+
+            // Intenta parsear en orden de prioridad
+            const parsedDate =
+                formatDateToDate(nextContactDate as string)
+
+            console.log(parsedDate)
+
+            if (!parsedDate) continue; // si no se puede parsear, la omitimos
+
+            await ContactsActivitiesModel.updateOne(
+                { id: act.id },
+                { $set: { DateFormat: parsedDate } }
+            );
+
+            updatedCount++;
+        }
+
+        response.setSuccess(`Se actualizaron ${updatedCount} actividades con DateFormat`);
+    } catch (error: any) {
+        console.error("Error actualizando actividades:", error);
         response.setError(error.message || "Error interno del servidor");
     }
 
@@ -141,9 +190,6 @@ export const getPagedListContactsActivitiesRepository = async (
         // Filtro base: solo actividades no cumplidas
         let filter: any = { fulfillDate: null };
 
-        // Contamos el total de documentos que cumplen el filtro
-        const totalItems = await ContactsActivitiesModel.countDocuments(filter);
-
         // Paginación
         const page = search.Page;
         const limit = await getLimit();
@@ -151,7 +197,7 @@ export const getPagedListContactsActivitiesRepository = async (
 
         // Traemos los documentos paginados
         let activities = await ContactsActivitiesModel.find(filter)
-            .sort({ id: 1 })
+            .sort({ DateFormat: -1 })
             .skip(skip)
             .limit(limit)
             .lean();
@@ -236,7 +282,7 @@ export const getPagedListContactsActivitiesRepository = async (
         }
 
         // Mapear a respuesta final
-        response.Items = activitiesData.reverse().map((s: any) => ({
+        response.Items = activitiesData.map((s: any) => ({
             id: s.activityId,
             status: s.status,
             fullName: `${s.name} ${s.lastName}`,
@@ -244,12 +290,12 @@ export const getPagedListContactsActivitiesRepository = async (
             interest: s.interest,
             activity: s.activity,
             reference: s.reference,
-            nextContactDate: s.nextContactDate,
+            nextContactDate: format(s.DateFormat, 'full'),
             user: users.find(u => u.id === s.userId)?.name || 'sin usuario',
             contactId: s.contactId
         }));
 
-        response.TotalItems = totalItems;
+        response.TotalItems = activities.length;
         response.ReferenceFilter = references.map(r => ({ id: r.id, name: r.name }));
         response.PageSize = limit;
         response.UserFilter = users.map(u => ({ id: u.id, name: u.name }));

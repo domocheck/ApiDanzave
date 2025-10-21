@@ -13,7 +13,8 @@ const contactsActivitiesSchema = new mongoose.Schema({
     result: String,
     status: String,
     updateDate: String,
-    userId: String
+    userId: String,
+    DateFormat: { type: Date, default: () => new Date() },
 });
 
 const connections: Record<string, Connection> = {};

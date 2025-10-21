@@ -1,6 +1,7 @@
 import { format } from "@formkit/tempo";
 
 export const formatDateToDate = (date: string): Date => {
+    if (!date) return new Date('2024-01-01T00:00:00.000Z');
     const regex = /(\d{1,2}) de (\w+) de (\d{4})/;
     let match = date.match(regex);
 
@@ -46,7 +47,7 @@ export const normalizeDate = (d: Date): Date => {
     return new Date(d.getFullYear(), d.getMonth(), d.getDate());
 };
 
-function convertirFechaInglesAEspanol(fechaEnIngles: string) {
+export function convertirFechaInglesAEspanol(fechaEnIngles: string) {
     const diasSemana = [
         'domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'
     ];
@@ -58,7 +59,7 @@ function convertirFechaInglesAEspanol(fechaEnIngles: string) {
     const parsedDate = new Date(fechaEnIngles);
 
     if (isNaN(parsedDate.getTime())) {
-        throw new Error("Formato de fecha no válido");
+        return fechaEnIngles;
     }
 
     const diaSemana = diasSemana[parsedDate.getDay()];

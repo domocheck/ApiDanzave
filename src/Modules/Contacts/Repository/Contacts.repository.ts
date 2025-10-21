@@ -7,6 +7,7 @@ import { ResponseMessages } from "../../Others/Models/ResponseMessages";
 import { IContacts } from "../Models/Contact.models";
 import { ChangeStatusPerson, IPagedListContact, PagedListContacts, SearchPagedListContacts } from "../Models/Contacts-paged-list.modelst";
 import { getContactsModel } from "../../../mongo/schemas/contacts.schema";
+import { sortByDateProperty } from "../../Others/Helpers/sortOrderByDate.helper";
 
 export const getFullNameContactById = async (id: string): Promise<string> => {
     try {
@@ -65,7 +66,8 @@ export const getPagedListContactsRepository = async (search: SearchPagedListCont
         const startIndex = (page - 1) * limit;
         const endIndex = startIndex + limit;
 
-        const paginatedContacts = contactsData.slice(startIndex, endIndex);
+        const ordenContacts = sortByDateProperty(contactsData, 'createDate', 'desc');
+        const paginatedContacts = ordenContacts.slice(startIndex, endIndex);
 
         response.Items = paginatedContacts.map((s: IContacts): IPagedListContact => ({
             id: s.id,

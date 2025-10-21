@@ -100,7 +100,8 @@ export interface IContactsActivities {
     result: string;
     status: string | null;
     userId: string;
-    movement?: IMovement
+    movement?: IMovement,
+    dateFormat?: Date,
 }
 
 export interface ActivityToTable {
