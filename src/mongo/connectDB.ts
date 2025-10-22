@@ -1,5 +1,6 @@
 // src/mongo/connectDB.ts
 import mongoose, { Connection } from "mongoose";
+import { updateFulFillDateByContactRepository } from "../Modules/ContactsActivities/Repository/ContactsActivitiesRepository";
 
 let connection: Connection | null = null; // variable singleton
 let isConnected = false;
@@ -41,6 +42,7 @@ const connectDB = async (): Promise<Connection> => {
             console.error("❌ Error en la conexión de MongoDB:", err);
         });
 
+        // await updateFulFillDateByContactRepository()
         isConnected = true;
         return connection;
     } catch (error: any) {

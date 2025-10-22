@@ -124,8 +124,6 @@ export const updateActivitiesWithDateFormatRepository = async (): Promise<Respon
             const parsedDate =
                 formatDateToDate(nextContactDate as string)
 
-            console.log(parsedDate)
-
             if (!parsedDate) continue; // si no se puede parsear, la omitimos
 
             await ContactsActivitiesModel.updateOne(
@@ -145,6 +143,69 @@ export const updateActivitiesWithDateFormatRepository = async (): Promise<Respon
     return response;
 };
 
+export const updateFulFillDateByContactRepository = async (): Promise<ResponseMessages> => {
+    const response = new ResponseMessages();
+
+    try {
+        const companyName = 'Danzave';
+        if (!companyName) throw new Error("Company name is not set");
+
+        const ContactsActivitiesModel = getContactsActivitiesModel(companyName);
+
+        // Obtener todas las actividades
+        const activities = await ContactsActivitiesModel.find().lean();
+
+        if (!activities.length) {
+            response.setWarning("No se encontraron actividades para actualizar");
+            return response;
+        }
+
+        // Agrupar actividades por contactId
+        const groupedByContact: Record<string, any[]> = {};
+        for (const act of activities) {
+            if (!act.contactId) continue;
+            if (!groupedByContact[act.contactId]) groupedByContact[act.contactId] = [];
+            groupedByContact[act.contactId].push(act);
+        }
+
+        let updatedCount = 0;
+        // Procesar cada grupo de actividades
+        for (const contactId of Object.keys(groupedByContact)) {
+            const group = groupedByContact[contactId];
+
+            // Ordenar por DateFormat (ascendente)
+            group.sort((a, b) => {
+                const dateA = new Date(a.DateFormat);
+                const dateB = new Date(b.DateFormat);
+                return dateA.getTime() - dateB.getTime();
+            });
+
+            // Actualizar cada actividad del grupo
+            for (let i = 0; i < group.length; i++) {
+                const act = group[i];
+                const isLast = i === group.length - 1;
+
+                const newFulFillDate = isLast ? null : act.updateDate || null;
+
+                await ContactsActivitiesModel.updateOne(
+                    { id: act.id },
+                    { $set: { fulFillDate: newFulFillDate } }
+                );
+
+                updatedCount++;
+            }
+        }
+
+        response.setSuccess(`Se actualizaron ${updatedCount} actividades con fulFillDate`);
+    } catch (error: any) {
+        console.error("Error actualizando fulFillDate:", error);
+        response.setError(error.message || "Error interno del servidor");
+    }
+
+    return response;
+};
+
+
 
 export const fulfillActivityRepository = async (
     activityId: string
@@ -159,7 +220,7 @@ export const fulfillActivityRepository = async (
 
         const result = await ContactsActivitiesModel.updateOne(
             { id: activityId },
-            { $set: { fulfillDate: format(new Date(), "full") } }
+            { $set: { fulFillDate: format(new Date(), "full") } }
         );
 
         if (result.matchedCount === 0) {
@@ -188,7 +249,7 @@ export const getPagedListContactsActivitiesRepository = async (
         const ContactsActivitiesModel = getContactsActivitiesModel(companyName);
 
         // Filtro base: solo actividades no cumplidas
-        let filter: any = { fulfillDate: null };
+        let filter: any = { fulFillDate: null };
 
         // Paginación
         const page = search.Page;
@@ -290,12 +351,12 @@ export const getPagedListContactsActivitiesRepository = async (
             interest: s.interest,
             activity: s.activity,
             reference: s.reference,
-            nextContactDate: format(s.DateFormat, 'full'),
+            nextContactDate: convertirFechaInglesAEspanol(s.nextContactDate as string),
             user: users.find(u => u.id === s.userId)?.name || 'sin usuario',
             contactId: s.contactId
         }));
 
-        response.TotalItems = activities.length;
+        response.TotalItems = response.Items.length;
         response.ReferenceFilter = references.map(r => ({ id: r.id, name: r.name }));
         response.PageSize = limit;
         response.UserFilter = users.map(u => ({ id: u.id, name: u.name }));
